@@ -1,0 +1,53 @@
+# IDE and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Environment and Config
+.env
+.env.local
+.env.*.local
+config.php
+configuration.php
+
+# Logs
+*.log
+logs/
+
+# Cache
+cache/
+tmp/
+temp/
+
+# Composer
+composer.lock
+
+# Build
+/build/
+/dist/
+
+# Testing
+/coverage/
+.phpunit.result.cache
+
+# WHMCS Specific
+/templates_c/
+/attachments/
+/downloads/
