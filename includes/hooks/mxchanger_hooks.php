@@ -354,7 +354,9 @@ var MXChanger = {
             html += '<div class="mxchanger-record add"><span class="priority">' + r.p + '</span><span class="host">' + r.h + '</span></div>';
         });
         html += '</div></div>';
-        html += '<div class="mxchanger-info-box"><i class="fas fa-info-circle"></i> <strong>Also configures:</strong> SPF record with <code>include:_spf.google.com</code></div>';
+        html += '<div class="mxchanger-info-box"><i class="fas fa-info-circle"></i> <strong>Also configures:</strong><br>';
+        html += '• SPF: <code>include:_spf.google.com</code><br>';
+        html += '• Custom URL CNAMEs: mail, calendar, drive, docs, sites → <code>ghs.googlehosted.com</code></div>';
         document.getElementById("mxchanger-modal-body").innerHTML = html;
         document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.showMenu()">Back</button><button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.applyGoogle()">Apply Google MX</button>';
     },
@@ -382,7 +384,7 @@ var MXChanger = {
         fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_dns&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.success) self.showSuccess("Google MX applied!");
+                if (data.success) self.showSuccess("Google Workspace DNS records configured!");
                 else self.showError(data.message || "Failed");
             })
             .catch(function(e) { self.showError("Error: " + e.message); });

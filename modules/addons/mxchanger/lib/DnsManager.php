@@ -35,6 +35,18 @@ class DnsManager
     const MX_TYPE_LOCAL = 'local';
 
     /**
+     * Google Workspace CNAME records for custom URLs
+     * These allow access via mail.domain.com, calendar.domain.com, etc.
+     */
+    const GOOGLE_CNAME_RECORDS = [
+        'mail' => 'ghs.googlehosted.com.',
+        'calendar' => 'ghs.googlehosted.com.',
+        'drive' => 'ghs.googlehosted.com.',
+        'docs' => 'ghs.googlehosted.com.',
+        'sites' => 'ghs.googlehosted.com.',
+    ];
+
+    /**
      * Office 365 CNAME records (excluding autodiscover which is handled separately)
      */
     const O365_CNAME_RECORDS = [
@@ -268,13 +280,19 @@ class DnsManager
             error_log('MX Changer: ' . ($o365Cleanup['message'] ?? 'O365 cleanup failed'));
         }
 
-        // Step 7: Log the change
+        // Step 7: Add Google Workspace CNAME records for custom URLs
+        $cnameResult = $this->addGoogleCnameRecords();
+        if (!$cnameResult['success']) {
+            $errors = array_merge($errors, $cnameResult['errors'] ?? [$cnameResult['message']]);
+        }
+
+        // Step 8: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode(self::GOOGLE_MX_RECORDS), $success, implode('; ', $errors), 'google');
 
         return [
             'success' => $success,
-            'message' => $success ? 'MX and SPF records updated for Google Workspace' : implode('; ', $errors),
+            'message' => $success ? 'All Google Workspace DNS records configured (MX, SPF, CNAMEs)' : implode('; ', $errors),
             'errors' => $errors,
             'spf' => $spfResult['spf_value'] ?? null,
         ];
@@ -370,7 +388,14 @@ class DnsManager
             $errors = array_merge($errors, $srvResult['errors'] ?? [$srvResult['message']]);
         }
 
-        // Step 8: Log the change
+        // Step 8: Remove any Google Workspace specific records
+        $googleCleanup = $this->removeGoogleRecords();
+        if (!$googleCleanup['success']) {
+            // Non-critical, just log
+            error_log('MX Changer: ' . ($googleCleanup['message'] ?? 'Google cleanup failed'));
+        }
+
+        // Step 9: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode([$o365Record]), $success, implode('; ', $errors), 'office365');
 
@@ -457,7 +482,14 @@ class DnsManager
             error_log('MX Changer: ' . ($o365Cleanup['message'] ?? 'O365 cleanup failed'));
         }
 
-        // Step 7: Log the change
+        // Step 7: Remove any Google Workspace specific records
+        $googleCleanup = $this->removeGoogleRecords();
+        if (!$googleCleanup['success']) {
+            // Non-critical, just log
+            error_log('MX Changer: ' . ($googleCleanup['message'] ?? 'Google cleanup failed'));
+        }
+
+        // Step 8: Log the change
         $success = empty($errors);
         $newRecords = [$localMxRecord];
         $this->logChange($oldRecordsJson, json_encode($newRecords), $success, implode('; ', $errors), 'local');
@@ -755,6 +787,90 @@ class DnsManager
         return [
             'success' => empty($errors),
             'message' => empty($errors) ? 'Autodiscover A record restored' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Add Google Workspace CNAME records for custom URLs
+     *
+     * @return array Result with success status
+     */
+    public function addGoogleCnameRecords()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        foreach (self::GOOGLE_CNAME_RECORDS as $subdomain => $target) {
+            $recordName = $subdomain . '.' . $domain . '.';
+
+            try {
+                // Check if record already exists
+                $existing = $this->getCnameRecord($subdomain);
+
+                if ($existing && isset($existing['line'])) {
+                    // If already pointing to correct target, skip
+                    if (strpos(strtolower($existing['value']), strtolower(rtrim($target, '.'))) !== false) {
+                        continue;
+                    }
+                    // Remove existing record
+                    $this->callCpanelApi('remove_zone_record', [
+                        'domain' => $domain,
+                        'line' => $existing['line'],
+                    ], 'ZoneEdit');
+                }
+
+                // Add new CNAME record
+                $this->callCpanelApi('add_zone_record', [
+                    'domain' => $domain,
+                    'type' => 'CNAME',
+                    'name' => $recordName,
+                    'cname' => $target,
+                    'ttl' => 3600,
+                ], 'ZoneEdit');
+
+            } catch (\Exception $e) {
+                $errors[] = "Failed to add {$subdomain} CNAME: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Google Workspace CNAME records added' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Remove all Google Workspace specific CNAME records
+     *
+     * @return array Result with success status
+     */
+    public function removeGoogleRecords()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        foreach (array_keys(self::GOOGLE_CNAME_RECORDS) as $subdomain) {
+            try {
+                $existing = $this->getCnameRecord($subdomain);
+                if ($existing && isset($existing['line'])) {
+                    // Only remove if it points to Google
+                    if (strpos(strtolower($existing['value']), 'googlehosted.com') !== false) {
+                        $this->callCpanelApi('remove_zone_record', [
+                            'domain' => $domain,
+                            'line' => $existing['line'],
+                        ], 'ZoneEdit');
+                    }
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Failed to remove {$subdomain} CNAME: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Google Workspace records removed' : implode('; ', $errors),
             'errors' => $errors,
         ];
     }

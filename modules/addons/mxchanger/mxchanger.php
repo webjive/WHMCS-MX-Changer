@@ -9,7 +9,7 @@
  * @author     WebJIVE
  * @copyright  Copyright (c) WebJIVE
  * @link       https://webjive.com
- * @version    1.2.0
+ * @version    1.3.0
  */
 
 if (!defined("WHMCS")) {
@@ -37,7 +37,7 @@ function mxchanger_config()
     return [
         'name' => 'MX Changer',
         'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
-        'version' => '1.2.0',
+        'version' => '1.3.0',
         'author' => 'WebJIVE',
         'fields' => [
             'enable_logging' => [
@@ -267,18 +267,33 @@ function mxchanger_output_google($vars)
     echo '</tbody>';
     echo '</table>';
 
-    echo '<div class="alert alert-info">';
-    echo '<i class="fas fa-info-circle"></i> <strong>Note:</strong> Google Workspace does not require an autodiscover record. ';
-    echo 'Any existing autodiscover CNAME will be removed when switching to Google.';
+    echo '<div class="alert alert-success">';
+    echo '<i class="fas fa-check-circle"></i> <strong>Automatically Configured:</strong> All records listed above (MX, SPF) plus the custom URL CNAMEs below are automatically configured when you select Google Workspace.';
     echo '</div>';
 
-    echo '<h4>Additional Google Workspace Records (Manual Setup):</h4>';
-    echo '<p>The following records may be needed for full Google Workspace functionality but are not automatically configured:</p>';
+    echo '<h4>Custom URL CNAME Records <span class="label label-success">Auto-configured</span>:</h4>';
+    echo '<p>These CNAMEs allow access via <code>mail.yourdomain.com</code>, <code>calendar.yourdomain.com</code>, etc.</p>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Points To</th><th>Access URL</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>CNAME</td><td>mail</td><td><code>ghs.googlehosted.com</code></td><td>Gmail webmail</td></tr>';
+    echo '<tr><td>CNAME</td><td>calendar</td><td><code>ghs.googlehosted.com</code></td><td>Google Calendar</td></tr>';
+    echo '<tr><td>CNAME</td><td>drive</td><td><code>ghs.googlehosted.com</code></td><td>Google Drive</td></tr>';
+    echo '<tr><td>CNAME</td><td>docs</td><td><code>ghs.googlehosted.com</code></td><td>Google Docs</td></tr>';
+    echo '<tr><td>CNAME</td><td>sites</td><td><code>ghs.googlehosted.com</code></td><td>Google Sites</td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<div class="alert alert-info">';
+    echo '<i class="fas fa-info-circle"></i> <strong>Note:</strong> Google Workspace does not require an autodiscover record. ';
+    echo 'Any existing autodiscover CNAME or Office 365 records will be removed when switching to Google.';
+    echo '</div>';
+
+    echo '<h4>Manual Setup (Not Auto-configured):</h4>';
     echo '<table class="table table-striped table-bordered">';
     echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
     echo '<tbody>';
-    echo '<tr><td>TXT</td><td>@</td><td><code>google-site-verification=XXXXX</code></td><td>Domain verification</td></tr>';
-    echo '<tr><td>CNAME</td><td>mail</td><td><code>ghs.googlehosted.com</code></td><td>Webmail access</td></tr>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>google-site-verification=XXXXX</code></td><td>Domain verification (unique per account)</td></tr>';
     echo '</tbody>';
     echo '</table>';
 
