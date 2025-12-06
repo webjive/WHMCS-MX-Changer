@@ -241,13 +241,18 @@ var MXChanger = {
         })
             .then(function(r) {
                 console.log("MXChanger: Response status: " + r.status);
-                if (!r.ok) {
-                    return r.text().then(function(text) {
-                        console.log("MXChanger: Error response: " + text.substring(0, 500));
+                return r.text().then(function(text) {
+                    console.log("MXChanger: Response body: " + text.substring(0, 500));
+                    if (!r.ok) {
                         throw new Error("HTTP error: " + r.status);
-                    });
-                }
-                return r.json();
+                    }
+                    try {
+                        return JSON.parse(text);
+                    } catch(e) {
+                        console.log("MXChanger: JSON parse error - response is not JSON");
+                        throw new Error("Invalid response - not JSON");
+                    }
+                });
             })
             .then(function(data) {
                 if (data.success) {
