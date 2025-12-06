@@ -21,8 +21,10 @@ use WHMCS\Database\Capsule;
  * Add custom CSS to admin pages
  */
 add_hook('AdminAreaHeadOutput', 1, function($vars) {
-    // Only load on client summary page
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false) {
+    // Load on client summary page AND client services page
+    $isClientPage = strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') !== false ||
+                    strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') !== false;
+    if (!$isClientPage) {
         return '';
     }
 
@@ -542,8 +544,10 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
  * Add MX Manager button to Module Commands on Products/Services tab
  */
 add_hook('AdminAreaFooterOutput', 1, function($vars) {
-    // Only run on client summary page
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false) {
+    // Load on client summary page AND client services page
+    $isClientPage = strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') !== false ||
+                    strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') !== false;
+    if (!$isClientPage) {
         return '';
     }
 
@@ -577,23 +581,42 @@ var MXChanger = {
     injectButtons: function() {
         var self = this;
 
+        console.log("MXChanger: injectButtons called");
+
         // Method 1: Find Module Commands row in service detail view
         // Look for the row with "Module Commands" label and buttons like Create, Suspend, etc.
         var moduleCommandsRow = null;
         var moduleCommandsContainer = null;
 
         // Search for "Module Commands" text in the page
-        document.querySelectorAll("td, th, label").forEach(function(el) {
-            if (el.textContent.trim() === "Module Commands") {
+        document.querySelectorAll("td, th, label, div, span").forEach(function(el) {
+            var text = el.textContent.trim();
+            if (text === "Module Commands" || text.indexOf("Module Commands") === 0) {
+                console.log("MXChanger: Found Module Commands element", el);
                 moduleCommandsRow = el.closest("tr") || el.parentElement;
                 // Find the container with the buttons (next sibling td or adjacent element)
                 if (moduleCommandsRow) {
                     moduleCommandsContainer = moduleCommandsRow.querySelector("td:last-child") ||
                                               moduleCommandsRow.querySelector(".controls") ||
                                               el.nextElementSibling;
+                    console.log("MXChanger: Container found", moduleCommandsContainer);
                 }
             }
         });
+
+        // Also try finding by looking for the Create/Suspend buttons directly
+        if (!moduleCommandsContainer) {
+            var createBtn = document.querySelector(\'button[value="Create"], input[value="Create"], a:contains("Create")\');
+            if (!createBtn) {
+                // Try finding buttons with these texts
+                document.querySelectorAll("button, input[type=\'button\'], input[type=\'submit\']").forEach(function(btn) {
+                    if (btn.value === "Create" || btn.textContent.trim() === "Create") {
+                        moduleCommandsContainer = btn.parentElement;
+                        console.log("MXChanger: Found via Create button", moduleCommandsContainer);
+                    }
+                });
+            }
+        }
 
         if (moduleCommandsContainer && !moduleCommandsContainer.querySelector(".mxchanger-module-btn")) {
             // Get service ID from URL or from existing buttons
@@ -643,6 +666,8 @@ var MXChanger = {
                 }
             }
 
+            console.log("MXChanger: serviceId=" + serviceId + ", domain=" + domain);
+
             if (serviceId && domain) {
                 // Create the MX Manager button matching WHMCS button style
                 var mxBtn = document.createElement("button");
@@ -656,7 +681,12 @@ var MXChanger = {
                     return false;
                 };
                 moduleCommandsContainer.appendChild(mxBtn);
+                console.log("MXChanger: Button added successfully!");
+            } else {
+                console.log("MXChanger: Missing serviceId or domain, button not added");
             }
+        } else {
+            console.log("MXChanger: moduleCommandsContainer not found or button already exists");
         }
 
         // Method 2: Also check dropdown menus for Products/Services list view
