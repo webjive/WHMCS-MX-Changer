@@ -577,12 +577,90 @@ var MXChanger = {
     injectButtons: function() {
         var self = this;
 
-        // Find all Module Commands dropdowns in the Products/Services section
-        // WHMCS typically uses dropdown menus with class "dropdown-menu" inside "btn-group"
+        // Method 1: Find Module Commands row in service detail view
+        // Look for the row with "Module Commands" label and buttons like Create, Suspend, etc.
+        var moduleCommandsRow = null;
+        var moduleCommandsContainer = null;
 
-        // Method 1: Look for dropdown menus in the products table
+        // Search for "Module Commands" text in the page
+        document.querySelectorAll("td, th, label").forEach(function(el) {
+            if (el.textContent.trim() === "Module Commands") {
+                moduleCommandsRow = el.closest("tr") || el.parentElement;
+                // Find the container with the buttons (next sibling td or adjacent element)
+                if (moduleCommandsRow) {
+                    moduleCommandsContainer = moduleCommandsRow.querySelector("td:last-child") ||
+                                              moduleCommandsRow.querySelector(".controls") ||
+                                              el.nextElementSibling;
+                }
+            }
+        });
+
+        if (moduleCommandsContainer && !moduleCommandsContainer.querySelector(".mxchanger-module-btn")) {
+            // Get service ID from URL or from existing buttons
+            var serviceId = null;
+            var urlMatch = window.location.search.match(/id=(\d+)/);
+            if (urlMatch) {
+                serviceId = urlMatch[1];
+            } else {
+                // Try to find from existing module command buttons
+                var existingBtn = moduleCommandsContainer.querySelector("a[href*='id='], button[onclick*='id=']");
+                if (existingBtn) {
+                    var href = existingBtn.getAttribute("href") || existingBtn.getAttribute("onclick") || "";
+                    var match = href.match(/id=(\d+)/);
+                    if (match) serviceId = match[1];
+                }
+            }
+
+            // Get domain from the page
+            var domain = null;
+            // Look for Domain field in the form
+            document.querySelectorAll("td, th, label").forEach(function(el) {
+                if (el.textContent.trim() === "Domain") {
+                    var row = el.closest("tr") || el.parentElement;
+                    if (row) {
+                        var valueCell = row.querySelector("td:last-child") ||
+                                        row.querySelector(".controls") ||
+                                        row.querySelector("input") ||
+                                        el.nextElementSibling;
+                        if (valueCell) {
+                            // Check for input field
+                            var input = valueCell.querySelector("input[type='text'], input:not([type='hidden'])");
+                            if (input && input.value) {
+                                domain = input.value.trim();
+                            } else if (valueCell.textContent) {
+                                domain = valueCell.textContent.trim().split("\n")[0].trim();
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Also try to find domain from select dropdown
+            if (!domain) {
+                var domainSelect = document.querySelector("select[name='domain'], input[name='domain']");
+                if (domainSelect) {
+                    domain = domainSelect.value;
+                }
+            }
+
+            if (serviceId && domain) {
+                // Create the MX Manager button matching WHMCS button style
+                var mxBtn = document.createElement("button");
+                mxBtn.type = "button";
+                mxBtn.className = "btn btn-default mxchanger-module-btn";
+                mxBtn.innerHTML = \'<i class="fas fa-envelope"></i> MX Manager\';
+                mxBtn.style.cssText = "background: linear-gradient(135deg, #4285f4 0%, #34a853 100%); color: #fff; border: none; margin-left: 5px;";
+                mxBtn.onclick = function(e) {
+                    e.preventDefault();
+                    MXChanger.openModal(serviceId, domain);
+                    return false;
+                };
+                moduleCommandsContainer.appendChild(mxBtn);
+            }
+        }
+
+        // Method 2: Also check dropdown menus for Products/Services list view
         document.querySelectorAll(".dropdown-menu").forEach(function(dropdown) {
-            // Check if this dropdown has module command items
             var items = dropdown.querySelectorAll("a");
             var hasModuleCommands = false;
             var serviceId = null;
@@ -590,23 +668,17 @@ var MXChanger = {
 
             items.forEach(function(item) {
                 var href = item.getAttribute("href") || "";
-                // Look for module command links like modulecmd, modop, etc.
                 if (href.indexOf("modop=") !== -1 || href.indexOf("modulecmd") !== -1 ||
                     href.indexOf("a=module") !== -1 || item.textContent.match(/Create|Suspend|Unsuspend|Terminate/i)) {
                     hasModuleCommands = true;
-                    // Try to extract service ID from the href
                     var match = href.match(/id=(\d+)/);
-                    if (match) {
-                        serviceId = match[1];
-                    }
+                    if (match) serviceId = match[1];
                 }
             });
 
             if (hasModuleCommands && serviceId) {
-                // Check if MX button already exists
                 if (dropdown.querySelector(".mxchanger-menu-item")) return;
 
-                // Find the domain from the table row
                 var row = dropdown.closest("tr");
                 if (row) {
                     var cells = row.querySelectorAll("td");
@@ -619,13 +691,11 @@ var MXChanger = {
                 }
 
                 if (domain) {
-                    // Add divider
                     var divider = document.createElement("li");
                     divider.className = "divider";
                     divider.setAttribute("role", "separator");
                     dropdown.appendChild(divider);
 
-                    // Add MX Manager menu item
                     var menuItem = document.createElement("li");
                     menuItem.className = "mxchanger-menu-item";
                     var link = document.createElement("a");
@@ -635,57 +705,13 @@ var MXChanger = {
                         e.preventDefault();
                         e.stopPropagation();
                         MXChanger.openModal(serviceId, domain);
-                        // Close the dropdown
                         var dropdownToggle = dropdown.closest(".btn-group");
-                        if (dropdownToggle) {
-                            dropdownToggle.classList.remove("open");
-                        }
+                        if (dropdownToggle) dropdownToggle.classList.remove("open");
                         return false;
                     };
                     menuItem.appendChild(link);
                     dropdown.appendChild(menuItem);
                 }
-            }
-        });
-
-        // Method 2: Also check for inline Module Commands buttons
-        document.querySelectorAll(\'a[href*="modop="], a[href*="modulecmd"]\').forEach(function(btn) {
-            var href = btn.getAttribute("href") || "";
-            var match = href.match(/id=(\d+)/);
-            if (!match) return;
-
-            var serviceId = match[1];
-            var container = btn.closest("td, .btn-group, .module-commands");
-            if (!container) return;
-
-            // Check if already added
-            if (container.querySelector(".mxchanger-inline-btn")) return;
-
-            // Find domain
-            var row = btn.closest("tr");
-            var domain = null;
-            if (row) {
-                var cells = row.querySelectorAll("td");
-                cells.forEach(function(cell) {
-                    var text = cell.textContent.trim();
-                    if (text.match(/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/)) {
-                        domain = text;
-                    }
-                });
-            }
-
-            if (domain) {
-                var mxBtn = document.createElement("a");
-                mxBtn.href = "#";
-                mxBtn.className = "btn btn-default btn-xs mxchanger-inline-btn";
-                mxBtn.style.cssText = "background: linear-gradient(135deg, #4285f4 0%, #34a853 100%); color: #fff; border: none; margin-left: 5px;";
-                mxBtn.innerHTML = \'<i class="fas fa-envelope"></i> MX\';
-                mxBtn.onclick = function(e) {
-                    e.preventDefault();
-                    MXChanger.openModal(serviceId, domain);
-                    return false;
-                };
-                container.appendChild(mxBtn);
             }
         });
     },
