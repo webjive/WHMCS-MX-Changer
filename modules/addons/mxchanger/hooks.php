@@ -2,7 +2,8 @@
 /**
  * WHMCS MX Changer Addon Module - Hooks
  *
- * Adds Google MX Update functionality to customer profile pages.
+ * Adds Google MX Update functionality to the Module Commands section
+ * on the product/service detail page in admin.
  *
  * @package    WHMCS
  * @author     WebJIVE
@@ -17,12 +18,16 @@ if (!defined("WHMCS")) {
 use WHMCS\Database\Capsule;
 
 /**
- * Add custom JavaScript and CSS to admin pages
+ * Add custom JavaScript and CSS to admin service page
  */
 add_hook('AdminAreaHeadOutput', 1, function($vars) {
-    // Only load on client summary page
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false &&
-        strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
+    // Only load on service detail page
+    if (strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
+        return '';
+    }
+
+    // Check if we have a service ID
+    if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
         return '';
     }
 
@@ -495,30 +500,22 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     transform: none !important;
 }
 
-/* Google MX Button in Products Tab */
-.btn-google-mx {
+/* MX Manager Button for Module Commands */
+.btn-mxchanger {
     background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
-    color: #fff !important;
     border: none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-left: 5px;
-    text-decoration: none;
-    display: inline-block;
-}
-
-.btn-google-mx:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 8px rgba(66, 133, 244, 0.3);
     color: #fff !important;
-    text-decoration: none;
+    margin-top: 5px;
 }
 
-.btn-google-mx i {
+.btn-mxchanger:hover,
+.btn-mxchanger:focus {
+    background: linear-gradient(135deg, #3b78e7 0%, #2d9649 100%);
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
+}
+
+.btn-mxchanger i {
     margin-right: 5px;
 }
 
@@ -660,14 +657,36 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
 });
 
 /**
- * Add Google MX button to product actions in client summary
+ * Add MX Manager button to Module Commands section on service detail page
  */
 add_hook('AdminAreaFooterOutput', 1, function($vars) {
-    // Only run on client summary and services pages
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false &&
-        strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
+    // Only run on service detail page
+    if (strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
         return '';
     }
+
+    // Check if we have a service ID
+    $serviceId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if (!$serviceId) {
+        return '';
+    }
+
+    // Get domain for this service
+    try {
+        $service = Capsule::table('tblhosting')
+            ->where('id', $serviceId)
+            ->first();
+
+        if (!$service || empty($service->domain)) {
+            return '';
+        }
+
+        $domain = $service->domain;
+    } catch (\Exception $e) {
+        return '';
+    }
+
+    $csrfToken = generate_token("plain");
 
     $output = '
 <!-- MX Changer Modal -->
@@ -688,89 +707,108 @@ add_hook('AdminAreaFooterOutput', 1, function($vars) {
 
 <script>
 var MXChanger = {
-    serviceId: null,
-    domain: null,
+    serviceId: ' . $serviceId . ',
+    domain: "' . addslashes($domain) . '",
     currentRecords: [],
     currentMxType: null,
     selectedAction: null,
-    csrfToken: "' . generate_token("plain") . '",
+    csrfToken: "' . $csrfToken . '",
 
     init: function() {
-        this.addButtonsToProducts();
+        this.addButtonToModuleCommands();
     },
 
-    addButtonsToProducts: function() {
+    addButtonToModuleCommands: function() {
         var self = this;
 
-        // Target the Products/Services table in client summary
-        var tables = document.querySelectorAll("table.datatable, table.table");
+        // Find the Module Commands panel
+        // Look for panel with "Module Commands" heading or the module buttons container
+        var panels = document.querySelectorAll(".panel, .module-commands, .sidebar-content");
+        var targetPanel = null;
 
-        tables.forEach(function(table) {
-            var rows = table.querySelectorAll("tbody tr");
-
-            rows.forEach(function(row) {
-                // Look for service ID in links
-                var serviceLink = row.querySelector(\'a[href*="clientsservices.php?id="]\');
-                if (!serviceLink) return;
-
-                var match = serviceLink.href.match(/id=(\d+)/);
-                if (!match) return;
-                var serviceId = match[1];
-
-                // Find domain in the row - look for text that matches domain pattern
-                var cells = row.querySelectorAll("td");
-                var domain = null;
-
-                for (var i = 0; i < cells.length; i++) {
-                    var text = cells[i].textContent.trim();
-                    // Match common domain patterns
-                    if (text.match(/^[a-zA-Z0-9][a-zA-Z0-9\-]*\.[a-zA-Z]{2,}(\.[a-zA-Z]{2,})?$/)) {
-                        domain = text;
-                        break;
-                    }
-                }
-
-                if (!domain) return;
-
-                // Find actions cell (usually last cell or cell with buttons)
-                var actionsCell = null;
-                for (var i = cells.length - 1; i >= 0; i--) {
-                    if (cells[i].querySelector("a, button") || cells[i].classList.contains("text-center")) {
-                        actionsCell = cells[i];
-                        break;
-                    }
-                }
-
-                if (!actionsCell) {
-                    actionsCell = cells[cells.length - 1];
-                }
-
-                // Check if button already exists
-                if (actionsCell.querySelector(".btn-google-mx")) return;
-
-                // Create the MX Manager button
-                var btn = document.createElement("a");
-                btn.href = "#";
-                btn.className = "btn btn-xs btn-google-mx";
-                btn.innerHTML = \'<i class="fas fa-envelope"></i> MX Manager\';
-                btn.onclick = function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    MXChanger.openModal(serviceId, domain);
-                    return false;
-                };
-
-                actionsCell.appendChild(document.createTextNode(" "));
-                actionsCell.appendChild(btn);
-            });
+        // Method 1: Look for panel heading containing "Module Commands"
+        document.querySelectorAll(".panel-heading, .header-title, h3, h4").forEach(function(heading) {
+            if (heading.textContent.indexOf("Module Commands") !== -1 ||
+                heading.textContent.indexOf("Module Create") !== -1) {
+                targetPanel = heading.closest(".panel") || heading.parentElement;
+            }
         });
+
+        // Method 2: Look for the sidebar module buttons
+        if (!targetPanel) {
+            var moduleButtons = document.querySelector("#modulecmd-container, .modulecmd, [id*=module]");
+            if (moduleButtons) {
+                targetPanel = moduleButtons;
+            }
+        }
+
+        // Method 3: Look for Create/Suspend/Terminate buttons and find their container
+        if (!targetPanel) {
+            var createBtn = document.querySelector(\'input[value="Create"], button:contains("Create"), a[href*="modop=create"]\');
+            if (createBtn) {
+                targetPanel = createBtn.closest(".panel-body, .panel, .sidebar-content, form");
+            }
+        }
+
+        // Method 4: Look in sidebar
+        if (!targetPanel) {
+            targetPanel = document.querySelector(".sidebar .panel-body, .right-sidebar .panel-body");
+        }
+
+        // Method 5: Find any panel with module action buttons
+        if (!targetPanel) {
+            document.querySelectorAll(".panel-body").forEach(function(panel) {
+                if (panel.querySelector(\'input[type="submit"], button[type="submit"]\')) {
+                    var text = panel.textContent.toLowerCase();
+                    if (text.indexOf("create") !== -1 || text.indexOf("suspend") !== -1 || text.indexOf("terminate") !== -1) {
+                        targetPanel = panel;
+                    }
+                }
+            });
+        }
+
+        if (targetPanel) {
+            // Check if button already exists
+            if (targetPanel.querySelector("#mxchanger-btn")) return;
+
+            // Create the MX Manager button
+            var btnContainer = document.createElement("div");
+            btnContainer.style.marginTop = "10px";
+            btnContainer.style.paddingTop = "10px";
+            btnContainer.style.borderTop = "1px solid #eee";
+
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.id = "mxchanger-btn";
+            btn.className = "btn btn-default btn-block btn-mxchanger";
+            btn.innerHTML = \'<i class="fas fa-envelope"></i> MX Record Manager\';
+            btn.onclick = function(e) {
+                e.preventDefault();
+                MXChanger.openModal();
+                return false;
+            };
+
+            btnContainer.appendChild(btn);
+            targetPanel.appendChild(btnContainer);
+        } else {
+            // Fallback: Add floating button
+            var floatBtn = document.createElement("button");
+            floatBtn.type = "button";
+            floatBtn.id = "mxchanger-btn";
+            floatBtn.className = "btn btn-mxchanger";
+            floatBtn.style.cssText = "position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 12px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);";
+            floatBtn.innerHTML = \'<i class="fas fa-envelope"></i> MX Manager\';
+            floatBtn.onclick = function(e) {
+                e.preventDefault();
+                MXChanger.openModal();
+                return false;
+            };
+            document.body.appendChild(floatBtn);
+        }
     },
 
-    openModal: function(serviceId, domain) {
-        this.serviceId = serviceId;
-        this.domain = domain;
+    openModal: function() {
         this.selectedAction = null;
-
         document.getElementById("mxchanger-modal").classList.add("active");
         document.getElementById("mxchanger-modal-header").className = "mxchanger-modal-header";
         document.getElementById("mxchanger-modal-title").textContent = "MX Record Manager";
@@ -780,8 +818,6 @@ var MXChanger = {
 
     closeModal: function() {
         document.getElementById("mxchanger-modal").classList.remove("active");
-        this.serviceId = null;
-        this.domain = null;
         this.currentRecords = [];
         this.currentMxType = null;
         this.selectedAction = null;
@@ -1113,7 +1149,7 @@ document.addEventListener("DOMContentLoaded", function() {
     MXChanger.init();
 });
 
-// Also run after a short delay to catch dynamically loaded content
+// Also run after delays to catch dynamically loaded content
 setTimeout(function() { MXChanger.init(); }, 500);
 setTimeout(function() { MXChanger.init(); }, 1500);
 </script>
