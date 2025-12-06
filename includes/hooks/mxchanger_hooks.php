@@ -102,6 +102,12 @@ var MXChanger = {
     domain: null,
     currentRecords: [],
     csrfToken: "$csrfToken",
+    adminPath: (function() {
+        var path = window.location.pathname;
+        var adminDir = path.substring(0, path.lastIndexOf('/') + 1);
+        console.log("MXChanger: Admin path = " + adminDir);
+        return adminDir;
+    })(),
 
     init: function() {
         console.log("MXChanger: Initializing...");
@@ -204,7 +210,9 @@ var MXChanger = {
 
     fetchRecords: function() {
         var self = this;
-        fetch("addonmodules.php?module=mxchanger&action=get_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {
+        var url = this.adminPath + "addonmodules.php?module=mxchanger&action=get_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken;
+        console.log("MXChanger: Fetching " + url);
+        fetch(url, {
             method: "GET",
             credentials: "same-origin"
         })
@@ -279,7 +287,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Applying Google MX...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("addonmodules.php?module=mxchanger&action=update_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
+        fetch(this.adminPath + "addonmodules.php?module=mxchanger&action=update_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) self.showSuccess("Google MX applied!");
@@ -292,7 +300,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Restoring local mail...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("addonmodules.php?module=mxchanger&action=restore_local&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
+        fetch(this.adminPath + "addonmodules.php?module=mxchanger&action=restore_local&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) self.showSuccess("Local mail restored!");
