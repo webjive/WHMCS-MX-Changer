@@ -204,8 +204,14 @@ var MXChanger = {
 
     fetchRecords: function() {
         var self = this;
-        fetch("addonmodules.php?module=mxchanger&action=get_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken)
-            .then(function(r) { return r.json(); })
+        fetch("addonmodules.php?module=mxchanger&action=get_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {
+            method: "GET",
+            credentials: "same-origin"
+        })
+            .then(function(r) {
+                if (!r.ok) throw new Error("HTTP error: " + r.status);
+                return r.json();
+            })
             .then(function(data) {
                 if (data.success) {
                     self.currentRecords = data.records || [];
@@ -273,7 +279,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Applying Google MX...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("addonmodules.php?module=mxchanger&action=update_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST"})
+        fetch("addonmodules.php?module=mxchanger&action=update_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) self.showSuccess("Google MX applied!");
@@ -286,7 +292,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Restoring local mail...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("addonmodules.php?module=mxchanger&action=restore_local&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST"})
+        fetch("addonmodules.php?module=mxchanger&action=restore_local&service_id=" + this.serviceId + "&token=" + this.csrfToken, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) self.showSuccess("Local mail restored!");
