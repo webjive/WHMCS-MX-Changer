@@ -335,7 +335,7 @@ var MXChanger = {
             console.log("MXChanger: Service ID from URL serviceid param: " + serviceId);
         }
 
-        // Method 3: From existing module command buttons
+        // Method 3: From existing module command buttons - look for &id= or ?id= (not userid)
         if (!serviceId) {
             var moduleButtons = moduleCommandsContainer.querySelectorAll("a, button, input[type=submit]");
             moduleButtons.forEach(function(btn) {
@@ -345,33 +345,72 @@ var MXChanger = {
                 var formAction = btn.form ? btn.form.action : "";
                 var searchStr = href + " " + onclick + " " + formAction;
 
-                var match = searchStr.match(/id=(\d+)/);
+                // Look for &id= or ?id= but NOT userid=
+                var match = searchStr.match(/[\?&]id=(\d+)/);
                 if (match) {
                     serviceId = match[1];
-                    console.log("MXChanger: Service ID from button: " + serviceId);
+                    console.log("MXChanger: Service ID from button href: " + serviceId);
                 }
             });
         }
 
-        // Method 4: From hidden form field
+        // Method 4: From hidden form field named "id"
         if (!serviceId) {
-            var hiddenId = document.querySelector("input[name=id]");
-            if (hiddenId) {
+            var hiddenId = document.querySelector("input[name='id'][type='hidden']");
+            if (hiddenId && hiddenId.value) {
                 serviceId = hiddenId.value;
                 console.log("MXChanger: Service ID from hidden field: " + serviceId);
             }
         }
 
-        // Method 5: From form action
+        // Method 5: From the page's main form - look for serviceid or id field
+        if (!serviceId) {
+            var serviceIdField = document.querySelector("input[name='serviceid']");
+            if (serviceIdField && serviceIdField.value) {
+                serviceId = serviceIdField.value;
+                console.log("MXChanger: Service ID from serviceid field: " + serviceId);
+            }
+        }
+
+        // Method 6: From form action URL
         if (!serviceId) {
             var forms = document.querySelectorAll("form");
             forms.forEach(function(form) {
                 if (serviceId) return;
                 var action = form.action || "";
-                var match = action.match(/id=(\d+)/);
+                // Look for &id= or ?id= but NOT userid=
+                var match = action.match(/[\?&]id=(\d+)/);
                 if (match) {
                     serviceId = match[1];
                     console.log("MXChanger: Service ID from form action: " + serviceId);
+                }
+            });
+        }
+
+        // Method 7: Look for Order # link which contains the service ID
+        if (!serviceId) {
+            var orderLink = document.querySelector("a[href*='clientsservices.php'][href*='&id=']");
+            if (orderLink) {
+                var match = orderLink.href.match(/[\?&]id=(\d+)/);
+                if (match) {
+                    serviceId = match[1];
+                    console.log("MXChanger: Service ID from order link: " + serviceId);
+                }
+            }
+        }
+
+        // Method 8: Check all links on page for pattern clientsservices.php?userid=X&id=Y
+        if (!serviceId) {
+            var allLinks = document.querySelectorAll("a[href*='&id=']");
+            allLinks.forEach(function(link) {
+                if (serviceId) return;
+                var href = link.href || "";
+                if (href.indexOf("clientsservices") !== -1 || href.indexOf("userid") !== -1) {
+                    var match = href.match(/[\?&]id=(\d+)/);
+                    if (match) {
+                        serviceId = match[1];
+                        console.log("MXChanger: Service ID from page link: " + serviceId);
+                    }
                 }
             });
         }
