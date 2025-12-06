@@ -210,7 +210,7 @@ var MXChanger = {
             btn.type = "button";
             btn.className = "btn btn-default mxchanger-module-btn";
             btn.id = "mxchanger-btn-" + serviceId;
-            btn.innerHTML = '<i class="fas fa-envelope"></i> MX Manager <span class="mxchanger-status" style="margin-left:5px;padding:2px 6px;border-radius:3px;font-size:11px;background:rgba(255,255,255,0.3);"></span>';
+            btn.innerHTML = '<i class="fas fa-envelope"></i> MX Manager <span class="mxchanger-status" style="margin-left:5px;padding:2px 6px;border-radius:3px;font-size:11px;background:#000;color:#fff;"></span>';
             btn.onclick = function(e) {
                 e.preventDefault();
                 MXChanger.openModal(serviceId, domain);
@@ -257,27 +257,20 @@ var MXChanger = {
                         var statusSpan = btn.querySelector(".mxchanger-status");
                         if (statusSpan) {
                             var label = "";
-                            var bgColor = "";
                             switch (data.mx_type) {
                                 case "google":
                                     label = "Google";
-                                    bgColor = "#34a853";
                                     break;
                                 case "office365":
                                     label = "O365";
-                                    bgColor = "#d83b01";
                                     break;
                                 case "local":
                                     label = "cPanel";
-                                    bgColor = "#337ab7";
                                     break;
                                 default:
                                     label = "Other";
-                                    bgColor = "#e65100";
                             }
                             statusSpan.textContent = label;
-                            statusSpan.style.background = bgColor;
-                            statusSpan.style.color = "#fff";
                         }
                     }
                 }
