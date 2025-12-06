@@ -84,6 +84,21 @@ CSS;
 add_hook('AdminAreaFooterOutput', 1, function($vars) {
     $csrfToken = generate_token("plain");
 
+    // Get admin path from WHMCS config
+    $adminPath = defined('WHMCS\Application\Support\Facades\App')
+        ? \WHMCS\Application\Support\Facades\App::getAdminPath()
+        : (defined('ADMINAREA') ? '/' . basename(dirname($_SERVER['SCRIPT_NAME'])) . '/' : '/admin/');
+
+    // Alternative: Get from config
+    if (function_exists('getAdminFolder')) {
+        $adminPath = '/' . getAdminFolder() . '/';
+    } elseif (isset($GLOBALS['customadminpath'])) {
+        $adminPath = '/' . $GLOBALS['customadminpath'] . '/';
+    }
+
+    // Clean up the path
+    $adminPath = '/' . trim($adminPath, '/') . '/';
+
     $js = <<<JSEND
 <!-- MX Changer Modal -->
 <div class="mxchanger-modal-overlay" id="mxchanger-modal">
@@ -102,15 +117,10 @@ var MXChanger = {
     domain: null,
     currentRecords: [],
     csrfToken: "$csrfToken",
-    adminPath: (function() {
-        var path = window.location.pathname;
-        var adminDir = path.substring(0, path.lastIndexOf('/') + 1);
-        console.log("MXChanger: Admin path = " + adminDir);
-        return adminDir;
-    })(),
+    adminPath: "$adminPath",
 
     init: function() {
-        console.log("MXChanger: Initializing...");
+        console.log("MXChanger: Initializing... Admin path: " + this.adminPath);
         this.injectButtons();
     },
 
