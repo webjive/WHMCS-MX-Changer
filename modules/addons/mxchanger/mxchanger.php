@@ -365,6 +365,18 @@ function mxchanger_output_microsoft($vars)
  */
 function mxchanger_output_logs($vars)
 {
+    $modulelink = $vars['modulelink'];
+
+    // Handle clear logs action
+    if (isset($_GET['clear_logs']) && $_GET['clear_logs'] === 'confirm') {
+        try {
+            Capsule::table('mod_mxchanger_log')->truncate();
+            echo '<div class="alert alert-success"><i class="fas fa-check"></i> All activity logs have been cleared.</div>';
+        } catch (\Exception $e) {
+            echo '<div class="alert alert-danger">Error clearing logs: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        }
+    }
+
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
     $perPage = 25;
     $offset = ($page - 1) * $perPage;
@@ -378,8 +390,11 @@ function mxchanger_output_logs($vars)
             ->get();
 
         echo '<div class="panel panel-default">';
-        echo '<div class="panel-heading">';
-        echo '<h3 class="panel-title"><i class="fas fa-history"></i> MX Change Activity Logs</h3>';
+        echo '<div class="panel-heading" style="display:flex;justify-content:space-between;align-items:center;">';
+        echo '<h3 class="panel-title" style="margin:0;"><i class="fas fa-history"></i> MX Change Activity Logs</h3>';
+        if ($totalLogs > 0) {
+            echo '<button type="button" class="btn btn-danger btn-sm" onclick="if(confirm(\'Are you sure you want to clear all activity logs? This cannot be undone.\')) { window.location.href=\'' . $modulelink . '&action=logs&clear_logs=confirm\'; }"><i class="fas fa-trash"></i> Clear Logs</button>';
+        }
         echo '</div>';
         echo '<div class="panel-body">';
 
