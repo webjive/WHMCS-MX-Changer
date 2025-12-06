@@ -2,7 +2,7 @@
 /**
  * WHMCS MX Changer - DNS Manager Class
  *
- * Handles DNS record retrieval and updates via cPanel Extended API
+ * Handles MX record retrieval and updates via cPanel Email API
  *
  * @package    WHMCS
  * @author     WebJIVE
@@ -119,25 +119,48 @@ class DnsManager
     public function getCurrentMxRecords()
     {
         $domain = $this->getDomain();
-        $response = $this->callCpanelApi('fetchzone_records', [
+
+        // Use Email API to list MX records
+        $response = $this->callEmailApi('listmxs', [
             'domain' => $domain,
-            'type' => 'MX',
         ]);
 
-        if (!isset($response['result']['data'])) {
-            return [];
+        // Handle various response structures
+        $data = [];
+        if (isset($response['result']['data'])) {
+            $data = $response['result']['data'];
+        } elseif (isset($response['cpanelresult']['data'])) {
+            $data = $response['cpanelresult']['data'];
+        } elseif (isset($response['data'])) {
+            $data = $response['data'];
+        }
+
+        // Ensure $data is an array
+        if (!is_array($data)) {
+            $data = [];
         }
 
         $records = [];
-        foreach ($response['result']['data'] as $record) {
-            if ($record['type'] === 'MX') {
-                $records[] = [
-                    'line' => $record['line'] ?? null,
-                    'priority' => (int)$record['preference'],
-                    'host' => rtrim($record['exchange'], '.'),
-                    'name' => $record['name'] ?? $domain,
-                ];
+        foreach ($data as $record) {
+            if (!is_array($record)) {
+                continue;
             }
+
+            // Get priority
+            $priority = $record['priority'] ?? $record['preference'] ?? $record['pref'] ?? 0;
+
+            // Get mail server (exchange or mx)
+            $host = $record['exchange'] ?? $record['mx'] ?? $record['exchanger'] ?? '';
+            $host = rtrim($host, '.');
+
+            if (empty($host)) {
+                continue;
+            }
+
+            $records[] = [
+                'priority' => (int)$priority,
+                'host' => $host,
+            ];
         }
 
         // Sort by priority
@@ -162,33 +185,39 @@ class DnsManager
         $currentRecords = $this->getCurrentMxRecords();
         $oldRecordsJson = json_encode($currentRecords);
 
-        // Step 2: Remove existing MX records
+        // Step 2: Remove existing MX records using Email API
         foreach ($currentRecords as $record) {
-            if (isset($record['line'])) {
+            try {
+                // Try without trailing dot first
+                $this->callEmailApi('delmx', [
+                    'domain' => $domain,
+                    'exchange' => $record['host'],
+                    'preference' => $record['priority'],
+                ]);
+            } catch (\Exception $e) {
+                // Try with trailing dot as fallback
                 try {
-                    $this->callCpanelApi('remove_zone_record', [
+                    $this->callEmailApi('delmx', [
                         'domain' => $domain,
-                        'line' => $record['line'],
+                        'exchange' => $record['host'] . '.',
+                        'preference' => $record['priority'],
                     ]);
-                } catch (\Exception $e) {
-                    $errors[] = 'Failed to remove record: ' . $record['host'] . ' - ' . $e->getMessage();
+                } catch (\Exception $e2) {
+                    $errors[] = 'Failed to remove: ' . $record['host'] . ' - ' . $e->getMessage();
                 }
             }
         }
 
-        // Step 3: Add Google MX records
+        // Step 3: Add Google MX records using Email API
         foreach (self::GOOGLE_MX_RECORDS as $mxRecord) {
             try {
-                $this->callCpanelApi('add_zone_record', [
+                $this->callEmailApi('addmx', [
                     'domain' => $domain,
-                    'name' => $domain . '.',
-                    'type' => 'MX',
-                    'preference' => $mxRecord['priority'],
                     'exchange' => $mxRecord['exchange'],
-                    'ttl' => 14400,
+                    'preference' => $mxRecord['priority'],
                 ]);
             } catch (\Exception $e) {
-                $errors[] = 'Failed to add record: ' . $mxRecord['exchange'] . ' - ' . $e->getMessage();
+                $errors[] = 'Failed to add: ' . $mxRecord['exchange'] . ' - ' . $e->getMessage();
             }
         }
 
@@ -218,36 +247,40 @@ class DnsManager
         $currentRecords = $this->getCurrentMxRecords();
         $oldRecordsJson = json_encode($currentRecords);
 
-        // Step 2: Remove existing MX records
+        // Step 2: Remove existing MX records using Email API
         foreach ($currentRecords as $record) {
-            if (isset($record['line'])) {
+            try {
+                // Try without trailing dot first
+                $this->callEmailApi('delmx', [
+                    'domain' => $domain,
+                    'exchange' => $record['host'],
+                    'preference' => $record['priority'],
+                ]);
+            } catch (\Exception $e) {
+                // Try with trailing dot as fallback
                 try {
-                    $this->callCpanelApi('remove_zone_record', [
+                    $this->callEmailApi('delmx', [
                         'domain' => $domain,
-                        'line' => $record['line'],
+                        'exchange' => $record['host'] . '.',
+                        'preference' => $record['priority'],
                     ]);
-                } catch (\Exception $e) {
-                    $errors[] = 'Failed to remove record: ' . $record['host'] . ' - ' . $e->getMessage();
+                } catch (\Exception $e2) {
+                    $errors[] = 'Failed to remove: ' . $record['host'] . ' - ' . $e->getMessage();
                 }
             }
         }
 
-        // Step 3: Add local MX record pointing to the server/domain
-        // Default cPanel MX record points to mail.domain.com or the domain itself
-        $serverHostname = $this->getServerName();
+        // Step 3: Add local MX record pointing to the domain itself
         $localMxRecord = [
             'priority' => 0,
             'exchange' => $domain . '.',
         ];
 
         try {
-            $this->callCpanelApi('add_zone_record', [
+            $this->callEmailApi('addmx', [
                 'domain' => $domain,
-                'name' => $domain . '.',
-                'type' => 'MX',
-                'preference' => $localMxRecord['priority'],
                 'exchange' => $localMxRecord['exchange'],
-                'ttl' => 14400,
+                'preference' => $localMxRecord['priority'],
             ]);
         } catch (\Exception $e) {
             $errors[] = 'Failed to add local MX record: ' . $e->getMessage();
@@ -303,78 +336,109 @@ class DnsManager
     }
 
     /**
-     * Call cPanel Extended API
+     * Call cPanel API via WHM
+     *
+     * @param string $function API function name
+     * @param array $params API parameters
+     * @param string $module API module (default: ZoneEdit)
+     * @return array API response
+     */
+    protected function callCpanelApi($function, $params = [], $module = 'ZoneEdit')
+    {
+        $server = $this->serverData;
+        $service = $this->serviceData;
+
+        $hostname = $server->hostname ?: $server->ipaddress;
+        $username = $server->username ?: 'root';
+        $accessHash = trim(preg_replace('/\s+/', '', $server->accesshash ?? ''));
+        $secure = ($server->secure === 'on');
+        $protocol = $secure ? 'https' : 'http';
+        $cpanelUser = $service->username;
+
+        // Build query params
+        $queryParams = array_merge([
+            'cpanel_jsonapi_user' => $cpanelUser,
+            'cpanel_jsonapi_apiversion' => '2',
+            'cpanel_jsonapi_module' => $module,
+            'cpanel_jsonapi_func' => $function,
+        ], $params);
+
+        $url = "{$protocol}://{$hostname}:2087/json-api/cpanel?" . http_build_query($queryParams);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        // Auth via access hash or password
+        if (!empty($accessHash)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: whm {$username}:{$accessHash}"]);
+        } else {
+            $password = $this->decryptPassword($server->password);
+            curl_setopt($ch, CURLOPT_USERPWD, "{$username}:{$password}");
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("Connection failed: {$curlError}");
+        }
+
+        if ($httpCode === 401) {
+            throw new \Exception("Auth failed (401) - Verify API token for {$username}@{$hostname}");
+        }
+
+        if ($httpCode !== 200) {
+            throw new \Exception("HTTP {$httpCode} from {$hostname}");
+        }
+
+        $data = json_decode($response, true);
+        if (!$data) {
+            throw new \Exception("Invalid JSON: " . substr($response, 0, 100));
+        }
+
+        // Check for API2 error responses
+        if (isset($data['cpanelresult']['error']) && $data['cpanelresult']['error']) {
+            throw new \Exception($data['cpanelresult']['error']);
+        }
+
+        // Check for event result errors
+        if (isset($data['cpanelresult']['event']['result']) && $data['cpanelresult']['event']['result'] == 0) {
+            $reason = $data['cpanelresult']['event']['reason'] ?? 'Unknown error';
+            throw new \Exception($reason);
+        }
+
+        // Check data-level errors (some API2 calls return errors in data)
+        if (isset($data['cpanelresult']['data'][0]['result']['status']) && $data['cpanelresult']['data'][0]['result']['status'] == 0) {
+            $reason = $data['cpanelresult']['data'][0]['result']['statusmsg'] ?? 'Operation failed';
+            throw new \Exception($reason);
+        }
+
+        if (isset($data['cpanelresult']['data'])) {
+            return ['result' => ['data' => $data['cpanelresult']['data']]];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Call cPanel Email API for MX operations
      *
      * @param string $function API function name
      * @param array $params API parameters
      * @return array API response
      */
-    protected function callCpanelApi($function, $params = [])
+    protected function callEmailApi($function, $params = [])
     {
-        $server = $this->serverData;
-        $service = $this->serviceData;
-
-        // Build cPanel API URL
-        $protocol = $server->secure === 'on' ? 'https' : 'http';
-        $port = $server->secure === 'on' ? 2083 : 2082;
-        $hostname = $server->hostname ?: $server->ipaddress;
-
-        // Decrypt password
-        $password = $this->decryptPassword($service->password);
-
-        // API endpoint for UAPI
-        $url = "{$protocol}://{$hostname}:{$port}/execute/DNS/{$function}";
-
-        // Build query string
-        $queryString = http_build_query($params);
-
-        // Initialize cURL
-        $ch = curl_init();
-
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url . '?' . $queryString,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
-            CURLOPT_USERPWD => $service->username . ':' . $password,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/x-www-form-urlencoded',
-            ],
-        ]);
-
-        // For POST requests (add/remove records)
-        if (in_array($function, ['add_zone_record', 'remove_zone_record'])) {
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $queryString);
-            curl_setopt($ch, CURLOPT_URL, $url);
-        }
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($error) {
-            throw new \Exception('cURL error: ' . $error);
-        }
-
-        if ($httpCode !== 200) {
-            throw new \Exception('cPanel API error (HTTP ' . $httpCode . ') - Server: ' . $hostname . ', User: ' . $service->username);
-        }
-
-        $data = json_decode($response, true);
-
-        if (!$data) {
-            throw new \Exception('Invalid JSON response from cPanel');
-        }
-
-        if (isset($data['errors']) && !empty($data['errors'])) {
-            throw new \Exception(implode(', ', $data['errors']));
-        }
-
-        return $data;
+        return $this->callCpanelApi($function, $params, 'Email');
     }
 
     /**
@@ -385,7 +449,35 @@ class DnsManager
      */
     protected function decryptPassword($encryptedPassword)
     {
-        return localAPI('DecryptPassword', ['password2' => $encryptedPassword])['password'] ?? '';
+        // Try multiple decryption methods for compatibility
+
+        // Method 1: Use WHMCS decrypt function directly (most reliable)
+        if (function_exists('decrypt')) {
+            $decrypted = decrypt($encryptedPassword);
+            if (!empty($decrypted)) {
+                return $decrypted;
+            }
+        }
+
+        // Method 2: localAPI (works in proper admin context)
+        $result = localAPI('DecryptPassword', ['password2' => $encryptedPassword]);
+        if (!empty($result['password'])) {
+            return $result['password'];
+        }
+
+        // Method 3: Try the internal WHMCS function
+        if (class_exists('\\WHMCS\\Security\\Encryption')) {
+            try {
+                $decrypted = \WHMCS\Security\Encryption::decode($encryptedPassword);
+                if (!empty($decrypted)) {
+                    return $decrypted;
+                }
+            } catch (\Exception $e) {
+                // Continue to next method
+            }
+        }
+
+        throw new \Exception('Password decryption failed - unable to retrieve cPanel credentials');
     }
 
     /**

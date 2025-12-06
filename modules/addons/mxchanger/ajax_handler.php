@@ -1,37 +1,42 @@
 <?php
 /**
- * MX Changer - Direct AJAX Handler
- * Place in: modules/addons/mxchanger/ajax_handler.php
- * Access via: /modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=X
+ * MX Changer - AJAX Handler
+ *
+ * @package    WHMCS
+ * @author     WebJIVE
+ * @copyright  Copyright (c) WebJIVE
  */
-
-// Initialize WHMCS
-require_once __DIR__ . '/../../../init.php';
-require_once __DIR__ . '/../../../includes/adminfunctions.php';
-
-use WHMCS\Database\Capsule;
-
-// Check admin authentication
-if (!isset($_SESSION['adminid']) || !$_SESSION['adminid']) {
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'message' => 'Unauthorized - Admin login required']);
-    exit;
-}
 
 // Set JSON header
 header('Content-Type: application/json');
 
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-$serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
-
-if (!$serviceId) {
-    echo json_encode(['success' => false, 'message' => 'Service ID required']);
-    exit;
-}
-
-require_once __DIR__ . '/lib/DnsManager.php';
+// Error handler to return JSON
+set_error_handler(function($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 
 try {
+    // Initialize WHMCS
+    require_once __DIR__ . '/../../../init.php';
+    require_once __DIR__ . '/../../../includes/adminfunctions.php';
+    require_once __DIR__ . '/../../../includes/clientfunctions.php';
+
+    // Check admin authentication
+    if (!isset($_SESSION['adminid']) || !$_SESSION['adminid']) {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+
+    $action = isset($_GET['action']) ? $_GET['action'] : '';
+    $serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
+
+    if (!$serviceId) {
+        echo json_encode(['success' => false, 'message' => 'Service ID required']);
+        exit;
+    }
+
+    require_once __DIR__ . '/lib/DnsManager.php';
+
     $dnsManager = new \MXChanger\DnsManager($serviceId);
 
     switch ($action) {
@@ -60,6 +65,9 @@ try {
         default:
             echo json_encode(['success' => false, 'message' => 'Invalid action']);
     }
-} catch (\Exception $e) {
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+} catch (Throwable $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
 }
