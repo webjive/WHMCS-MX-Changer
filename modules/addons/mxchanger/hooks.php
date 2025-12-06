@@ -2,8 +2,8 @@
 /**
  * WHMCS MX Changer Addon Module - Hooks
  *
- * Adds Google MX Update functionality to the Module Commands section
- * on the product/service detail page in admin.
+ * Adds MX Record Manager button to the Module Commands area
+ * on the Products/Services tab of customer summary page.
  *
  * @package    WHMCS
  * @author     WebJIVE
@@ -18,16 +18,11 @@ if (!defined("WHMCS")) {
 use WHMCS\Database\Capsule;
 
 /**
- * Add custom JavaScript and CSS to admin service page
+ * Add custom CSS to admin pages
  */
 add_hook('AdminAreaHeadOutput', 1, function($vars) {
-    // Only load on service detail page
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
-        return '';
-    }
-
-    // Check if we have a service ID
-    if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    // Only load on client summary page
+    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false) {
         return '';
     }
 
@@ -131,7 +126,6 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     flex-wrap: wrap;
 }
 
-/* Loading State */
 .mxchanger-loading {
     text-align: center;
     padding: 60px 20px;
@@ -156,7 +150,6 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     font-size: 1.1em;
 }
 
-/* DNS Comparison Layout */
 .mxchanger-comparison {
     display: grid;
     grid-template-columns: 1fr 60px 1fr;
@@ -205,17 +198,9 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     margin-right: 8px;
 }
 
-.mxchanger-dns-panel.current h4 {
-    color: #6c757d;
-}
-
-.mxchanger-dns-panel.proposed h4 {
-    color: #34a853;
-}
-
-.mxchanger-dns-panel.proposed.local h4 {
-    color: #337ab7;
-}
+.mxchanger-dns-panel.current h4 { color: #6c757d; }
+.mxchanger-dns-panel.proposed h4 { color: #34a853; }
+.mxchanger-dns-panel.proposed.local h4 { color: #337ab7; }
 
 .mxchanger-arrow {
     display: flex;
@@ -236,9 +221,7 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     align-items: center;
 }
 
-.mxchanger-record:last-child {
-    margin-bottom: 0;
-}
+.mxchanger-record:last-child { margin-bottom: 0; }
 
 .mxchanger-record .priority {
     background: #e9ecef;
@@ -273,20 +256,15 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     border-color: #c3e6cb;
 }
 
-.mxchanger-record.add .host {
-    color: #28a745;
-}
+.mxchanger-record.add .host { color: #28a745; }
 
 .mxchanger-record.add.local {
     background: #e8f4fc;
     border-color: #bee5eb;
 }
 
-.mxchanger-record.add.local .host {
-    color: #337ab7;
-}
+.mxchanger-record.add.local .host { color: #337ab7; }
 
-/* Domain Info */
 .mxchanger-domain-info {
     background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
     border: 1px solid #e9ecef;
@@ -331,22 +309,10 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     font-weight: 500;
 }
 
-.mxchanger-domain-info .mx-badge.google {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
+.mxchanger-domain-info .mx-badge.google { background: #e8f5e9; color: #2e7d32; }
+.mxchanger-domain-info .mx-badge.local { background: #e3f2fd; color: #1565c0; }
+.mxchanger-domain-info .mx-badge.other { background: #fff3e0; color: #e65100; }
 
-.mxchanger-domain-info .mx-badge.local {
-    background: #e3f2fd;
-    color: #1565c0;
-}
-
-.mxchanger-domain-info .mx-badge.other {
-    background: #fff3e0;
-    color: #e65100;
-}
-
-/* Warning Box */
 .mxchanger-warning {
     background: #fff3cd;
     border: 1px solid #ffc107;
@@ -377,7 +343,6 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     font-size: 0.9em;
 }
 
-/* Success State */
 .mxchanger-success {
     text-align: center;
     padding: 40px 20px;
@@ -402,12 +367,8 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     font-size: 1.4em;
 }
 
-.mxchanger-success p {
-    color: #6c757d;
-    margin: 0;
-}
+.mxchanger-success p { color: #6c757d; margin: 0; }
 
-/* Error State */
 .mxchanger-error {
     text-align: center;
     padding: 40px 20px;
@@ -432,12 +393,8 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     font-size: 1.4em;
 }
 
-.mxchanger-error p {
-    color: #6c757d;
-    margin: 0;
-}
+.mxchanger-error p { color: #6c757d; margin: 0; }
 
-/* Buttons */
 .mxchanger-btn {
     padding: 10px 20px;
     border-radius: 6px;
@@ -474,16 +431,6 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     color: #fff;
 }
 
-.mxchanger-btn-danger {
-    background: #dc3545;
-    color: #fff;
-}
-
-.mxchanger-btn-danger:hover {
-    background: #c82333;
-    color: #fff;
-}
-
 .mxchanger-btn-secondary {
     background: #6c757d;
     color: #fff;
@@ -500,26 +447,6 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     transform: none !important;
 }
 
-/* MX Manager Button for Module Commands */
-.btn-mxchanger {
-    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
-    border: none;
-    color: #fff !important;
-    margin-top: 5px;
-}
-
-.btn-mxchanger:hover,
-.btn-mxchanger:focus {
-    background: linear-gradient(135deg, #3b78e7 0%, #2d9649 100%);
-    color: #fff !important;
-    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.4);
-}
-
-.btn-mxchanger i {
-    margin-right: 5px;
-}
-
-/* WHMCS Toast Notification */
 .mxchanger-toast {
     position: fixed;
     top: 20px;
@@ -537,41 +464,19 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     max-width: 400px;
 }
 
-.mxchanger-toast.success {
-    background: #28a745;
-}
-
-.mxchanger-toast.error {
-    background: #dc3545;
-}
-
-.mxchanger-toast.info {
-    background: #17a2b8;
-}
+.mxchanger-toast.success { background: #28a745; }
+.mxchanger-toast.error { background: #dc3545; }
 
 @keyframes mxchanger-toast-in {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes mxchanger-toast-out {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(100%);
-        opacity: 0;
-    }
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
 }
 
-/* Action Choice */
 .mxchanger-action-choice {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -580,9 +485,7 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
 }
 
 @media (max-width: 600px) {
-    .mxchanger-action-choice {
-        grid-template-columns: 1fr;
-    }
+    .mxchanger-action-choice { grid-template-columns: 1fr; }
 }
 
 .mxchanger-action-card {
@@ -601,23 +504,10 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
 }
 
-.mxchanger-action-card.google {
-    border-color: #34a853;
-}
-
-.mxchanger-action-card.google:hover {
-    border-color: #28a745;
-    background: #f0fff4;
-}
-
-.mxchanger-action-card.local {
-    border-color: #337ab7;
-}
-
-.mxchanger-action-card.local:hover {
-    border-color: #2196f3;
-    background: #e3f2fd;
-}
+.mxchanger-action-card.google { border-color: #34a853; }
+.mxchanger-action-card.google:hover { border-color: #28a745; background: #f0fff4; }
+.mxchanger-action-card.local { border-color: #337ab7; }
+.mxchanger-action-card.local:hover { border-color: #2196f3; background: #e3f2fd; }
 
 .mxchanger-action-card .icon {
     width: 60px;
@@ -640,16 +530,8 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
     color: #fff;
 }
 
-.mxchanger-action-card h4 {
-    margin: 0 0 8px 0;
-    color: #212529;
-}
-
-.mxchanger-action-card p {
-    margin: 0;
-    color: #6c757d;
-    font-size: 0.9em;
-}
+.mxchanger-action-card h4 { margin: 0 0 8px 0; color: #212529; }
+.mxchanger-action-card p { margin: 0; color: #6c757d; font-size: 0.9em; }
 </style>
 ';
 
@@ -657,32 +539,11 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
 });
 
 /**
- * Add MX Manager button to Module Commands section on service detail page
+ * Add MX Manager button to Module Commands on Products/Services tab
  */
 add_hook('AdminAreaFooterOutput', 1, function($vars) {
-    // Only run on service detail page
-    if (strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') === false) {
-        return '';
-    }
-
-    // Check if we have a service ID
-    $serviceId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-    if (!$serviceId) {
-        return '';
-    }
-
-    // Get domain for this service
-    try {
-        $service = Capsule::table('tblhosting')
-            ->where('id', $serviceId)
-            ->first();
-
-        if (!$service || empty($service->domain)) {
-            return '';
-        }
-
-        $domain = $service->domain;
-    } catch (\Exception $e) {
+    // Only run on client summary page
+    if (strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') === false) {
         return '';
     }
 
@@ -696,119 +557,142 @@ add_hook('AdminAreaFooterOutput', 1, function($vars) {
             <h3><i class="fas fa-envelope"></i> <span id="mxchanger-modal-title">MX Record Manager</span></h3>
             <button class="mxchanger-modal-close" onclick="MXChanger.closeModal()">&times;</button>
         </div>
-        <div class="mxchanger-modal-body" id="mxchanger-modal-body">
-            <!-- Content loaded dynamically -->
-        </div>
-        <div class="mxchanger-modal-footer" id="mxchanger-modal-footer">
-            <!-- Buttons loaded dynamically -->
-        </div>
+        <div class="mxchanger-modal-body" id="mxchanger-modal-body"></div>
+        <div class="mxchanger-modal-footer" id="mxchanger-modal-footer"></div>
     </div>
 </div>
 
 <script>
 var MXChanger = {
-    serviceId: ' . $serviceId . ',
-    domain: "' . addslashes($domain) . '",
+    serviceId: null,
+    domain: null,
     currentRecords: [],
     currentMxType: null,
-    selectedAction: null,
     csrfToken: "' . $csrfToken . '",
 
     init: function() {
-        this.addButtonToModuleCommands();
+        this.injectButtons();
     },
 
-    addButtonToModuleCommands: function() {
+    injectButtons: function() {
         var self = this;
 
-        // Find the Module Commands panel
-        // Look for panel with "Module Commands" heading or the module buttons container
-        var panels = document.querySelectorAll(".panel, .module-commands, .sidebar-content");
-        var targetPanel = null;
+        // Find all Module Commands dropdowns in the Products/Services section
+        // WHMCS typically uses dropdown menus with class "dropdown-menu" inside "btn-group"
 
-        // Method 1: Look for panel heading containing "Module Commands"
-        document.querySelectorAll(".panel-heading, .header-title, h3, h4").forEach(function(heading) {
-            if (heading.textContent.indexOf("Module Commands") !== -1 ||
-                heading.textContent.indexOf("Module Create") !== -1) {
-                targetPanel = heading.closest(".panel") || heading.parentElement;
-            }
-        });
+        // Method 1: Look for dropdown menus in the products table
+        document.querySelectorAll(".dropdown-menu").forEach(function(dropdown) {
+            // Check if this dropdown has module command items
+            var items = dropdown.querySelectorAll("a");
+            var hasModuleCommands = false;
+            var serviceId = null;
+            var domain = null;
 
-        // Method 2: Look for the sidebar module buttons
-        if (!targetPanel) {
-            var moduleButtons = document.querySelector("#modulecmd-container, .modulecmd, [id*=module]");
-            if (moduleButtons) {
-                targetPanel = moduleButtons;
-            }
-        }
-
-        // Method 3: Look for Create/Suspend/Terminate buttons and find their container
-        if (!targetPanel) {
-            var createBtn = document.querySelector(\'input[value="Create"], button:contains("Create"), a[href*="modop=create"]\');
-            if (createBtn) {
-                targetPanel = createBtn.closest(".panel-body, .panel, .sidebar-content, form");
-            }
-        }
-
-        // Method 4: Look in sidebar
-        if (!targetPanel) {
-            targetPanel = document.querySelector(".sidebar .panel-body, .right-sidebar .panel-body");
-        }
-
-        // Method 5: Find any panel with module action buttons
-        if (!targetPanel) {
-            document.querySelectorAll(".panel-body").forEach(function(panel) {
-                if (panel.querySelector(\'input[type="submit"], button[type="submit"]\')) {
-                    var text = panel.textContent.toLowerCase();
-                    if (text.indexOf("create") !== -1 || text.indexOf("suspend") !== -1 || text.indexOf("terminate") !== -1) {
-                        targetPanel = panel;
+            items.forEach(function(item) {
+                var href = item.getAttribute("href") || "";
+                // Look for module command links like modulecmd, modop, etc.
+                if (href.indexOf("modop=") !== -1 || href.indexOf("modulecmd") !== -1 ||
+                    href.indexOf("a=module") !== -1 || item.textContent.match(/Create|Suspend|Unsuspend|Terminate/i)) {
+                    hasModuleCommands = true;
+                    // Try to extract service ID from the href
+                    var match = href.match(/id=(\d+)/);
+                    if (match) {
+                        serviceId = match[1];
                     }
                 }
             });
-        }
 
-        if (targetPanel) {
-            // Check if button already exists
-            if (targetPanel.querySelector("#mxchanger-btn")) return;
+            if (hasModuleCommands && serviceId) {
+                // Check if MX button already exists
+                if (dropdown.querySelector(".mxchanger-menu-item")) return;
 
-            // Create the MX Manager button
-            var btnContainer = document.createElement("div");
-            btnContainer.style.marginTop = "10px";
-            btnContainer.style.paddingTop = "10px";
-            btnContainer.style.borderTop = "1px solid #eee";
+                // Find the domain from the table row
+                var row = dropdown.closest("tr");
+                if (row) {
+                    var cells = row.querySelectorAll("td");
+                    cells.forEach(function(cell) {
+                        var text = cell.textContent.trim();
+                        if (text.match(/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/)) {
+                            domain = text;
+                        }
+                    });
+                }
 
-            var btn = document.createElement("button");
-            btn.type = "button";
-            btn.id = "mxchanger-btn";
-            btn.className = "btn btn-default btn-block btn-mxchanger";
-            btn.innerHTML = \'<i class="fas fa-envelope"></i> MX Record Manager\';
-            btn.onclick = function(e) {
-                e.preventDefault();
-                MXChanger.openModal();
-                return false;
-            };
+                if (domain) {
+                    // Add divider
+                    var divider = document.createElement("li");
+                    divider.className = "divider";
+                    divider.setAttribute("role", "separator");
+                    dropdown.appendChild(divider);
 
-            btnContainer.appendChild(btn);
-            targetPanel.appendChild(btnContainer);
-        } else {
-            // Fallback: Add floating button
-            var floatBtn = document.createElement("button");
-            floatBtn.type = "button";
-            floatBtn.id = "mxchanger-btn";
-            floatBtn.className = "btn btn-mxchanger";
-            floatBtn.style.cssText = "position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 12px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);";
-            floatBtn.innerHTML = \'<i class="fas fa-envelope"></i> MX Manager\';
-            floatBtn.onclick = function(e) {
-                e.preventDefault();
-                MXChanger.openModal();
-                return false;
-            };
-            document.body.appendChild(floatBtn);
-        }
+                    // Add MX Manager menu item
+                    var menuItem = document.createElement("li");
+                    menuItem.className = "mxchanger-menu-item";
+                    var link = document.createElement("a");
+                    link.href = "#";
+                    link.innerHTML = \'<i class="fas fa-envelope"></i> MX Record Manager\';
+                    link.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        MXChanger.openModal(serviceId, domain);
+                        // Close the dropdown
+                        var dropdownToggle = dropdown.closest(".btn-group");
+                        if (dropdownToggle) {
+                            dropdownToggle.classList.remove("open");
+                        }
+                        return false;
+                    };
+                    menuItem.appendChild(link);
+                    dropdown.appendChild(menuItem);
+                }
+            }
+        });
+
+        // Method 2: Also check for inline Module Commands buttons
+        document.querySelectorAll(\'a[href*="modop="], a[href*="modulecmd"]\').forEach(function(btn) {
+            var href = btn.getAttribute("href") || "";
+            var match = href.match(/id=(\d+)/);
+            if (!match) return;
+
+            var serviceId = match[1];
+            var container = btn.closest("td, .btn-group, .module-commands");
+            if (!container) return;
+
+            // Check if already added
+            if (container.querySelector(".mxchanger-inline-btn")) return;
+
+            // Find domain
+            var row = btn.closest("tr");
+            var domain = null;
+            if (row) {
+                var cells = row.querySelectorAll("td");
+                cells.forEach(function(cell) {
+                    var text = cell.textContent.trim();
+                    if (text.match(/^[a-zA-Z0-9][a-zA-Z0-9\-\.]*\.[a-zA-Z]{2,}$/)) {
+                        domain = text;
+                    }
+                });
+            }
+
+            if (domain) {
+                var mxBtn = document.createElement("a");
+                mxBtn.href = "#";
+                mxBtn.className = "btn btn-default btn-xs mxchanger-inline-btn";
+                mxBtn.style.cssText = "background: linear-gradient(135deg, #4285f4 0%, #34a853 100%); color: #fff; border: none; margin-left: 5px;";
+                mxBtn.innerHTML = \'<i class="fas fa-envelope"></i> MX\';
+                mxBtn.onclick = function(e) {
+                    e.preventDefault();
+                    MXChanger.openModal(serviceId, domain);
+                    return false;
+                };
+                container.appendChild(mxBtn);
+            }
+        });
     },
 
-    openModal: function() {
-        this.selectedAction = null;
+    openModal: function(serviceId, domain) {
+        this.serviceId = serviceId;
+        this.domain = domain;
         document.getElementById("mxchanger-modal").classList.add("active");
         document.getElementById("mxchanger-modal-header").className = "mxchanger-modal-header";
         document.getElementById("mxchanger-modal-title").textContent = "MX Record Manager";
@@ -818,9 +702,10 @@ var MXChanger = {
 
     closeModal: function() {
         document.getElementById("mxchanger-modal").classList.remove("active");
+        this.serviceId = null;
+        this.domain = null;
         this.currentRecords = [];
         this.currentMxType = null;
-        this.selectedAction = null;
     },
 
     showLoading: function(message) {
@@ -832,7 +717,6 @@ var MXChanger = {
 
     fetchCurrentRecords: function() {
         var self = this;
-
         fetch("addonmodules.php?module=mxchanger&action=get_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken)
             .then(function(response) { return response.json(); })
             .then(function(data) {
@@ -864,33 +748,23 @@ var MXChanger = {
             \'<div class="details">\' +
             \'<h4>\' + this.escapeHtml(this.domain) + \'</h4>\' +
             \'<p>Service ID: \' + this.serviceId + \' &bull; Server: \' + this.escapeHtml(data.server || "N/A") + \'</p>\' +
-            \'</div>\' + mxTypeBadge +
-            \'</div>\';
+            \'</div>\' + mxTypeBadge + \'</div>\';
 
         html += \'<h4 style="margin-bottom: 15px; color: #495057;">Select an action:</h4>\';
-
         html += \'<div class="mxchanger-action-choice">\';
-
-        // Google MX Option
         html += \'<div class="mxchanger-action-card google" onclick="MXChanger.selectAction(\\\'google\\\')">\' +
             \'<div class="icon"><i class="fab fa-google"></i></div>\' +
             \'<h4>Set Google Workspace MX</h4>\' +
-            \'<p>Configure MX records for Google Workspace email delivery</p>\' +
-            \'</div>\';
-
-        // Local MX Option
+            \'<p>Configure MX records for Google Workspace email</p></div>\';
         html += \'<div class="mxchanger-action-card local" onclick="MXChanger.selectAction(\\\'local\\\')">\' +
             \'<div class="icon"><i class="fas fa-server"></i></div>\' +
             \'<h4>Restore Local Mail</h4>\' +
-            \'<p>Reset to default cPanel mail server configuration</p>\' +
-            \'</div>\';
-
+            \'<p>Reset to default cPanel mail server</p></div>\';
         html += \'</div>\';
 
-        // Show current records summary
         if (this.currentRecords.length > 0) {
             html += \'<div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">\';
-            html += \'<h5 style="margin: 0 0 10px 0; color: #6c757d;"><i class="fas fa-info-circle"></i> Current MX Records (\' + this.currentRecords.length + \')</h5>\';
+            html += \'<h5 style="margin: 0 0 10px 0; color: #6c757d;"><i class="fas fa-info-circle"></i> Current MX Records</h5>\';
             html += \'<div style="font-family: monospace; font-size: 0.9em; color: #495057;">\';
             this.currentRecords.forEach(function(record) {
                 html += \'<div style="padding: 3px 0;">\' + record.priority + \' \' + record.host + \'</div>\';
@@ -904,8 +778,6 @@ var MXChanger = {
     },
 
     selectAction: function(action) {
-        this.selectedAction = action;
-
         if (action === "google") {
             document.getElementById("mxchanger-modal-header").className = "mxchanger-modal-header";
             document.getElementById("mxchanger-modal-title").textContent = "Set Google Workspace MX";
@@ -918,115 +790,67 @@ var MXChanger = {
     },
 
     showGoogleComparison: function() {
+        var self = this;
         var html = \'<div class="mxchanger-domain-info">\' +
             \'<div class="icon"><i class="fab fa-google"></i></div>\' +
-            \'<div class="details">\' +
-            \'<h4>\' + this.escapeHtml(this.domain) + \'</h4>\' +
-            \'<p>Configure Google Workspace MX Records</p>\' +
-            \'</div></div>\';
+            \'<div class="details"><h4>\' + this.escapeHtml(this.domain) + \'</h4>\' +
+            \'<p>Configure Google Workspace MX Records</p></div></div>\';
 
-        html += \'<div class="mxchanger-warning">\' +
-            \'<i class="fas fa-exclamation-triangle"></i>\' +
-            \'<div class="content">\' +
-            \'<h5>Warning: DNS Changes</h5>\' +
-            \'<p>This will remove all existing MX records and replace them with Google Workspace MX records. Email delivery may be temporarily affected during DNS propagation (up to 48 hours).</p>\' +
-            \'</div></div>\';
+        html += \'<div class="mxchanger-warning"><i class="fas fa-exclamation-triangle"></i>\' +
+            \'<div class="content"><h5>Warning: DNS Changes</h5>\' +
+            \'<p>This will remove existing MX records and replace them with Google Workspace MX records.</p></div></div>\';
 
         html += \'<div class="mxchanger-comparison">\';
-
-        // Current records panel
-        html += \'<div class="mxchanger-dns-panel current">\' +
-            \'<h4><i class="fas fa-inbox"></i> Current MX Records</h4>\';
-
+        html += \'<div class="mxchanger-dns-panel current"><h4><i class="fas fa-inbox"></i> Current MX Records</h4>\';
         if (this.currentRecords.length === 0) {
-            html += \'<p class="text-muted" style="margin: 0;">No MX records found</p>\';
+            html += \'<p style="margin: 0; color: #999;">No MX records found</p>\';
         } else {
-            var self = this;
             this.currentRecords.forEach(function(record) {
-                html += \'<div class="mxchanger-record remove">\' +
-                    \'<span class="priority">\' + record.priority + \'</span>\' +
-                    \'<span class="host">\' + self.escapeHtml(record.host) + \'</span>\' +
-                    \'</div>\';
+                html += \'<div class="mxchanger-record remove"><span class="priority">\' + record.priority + \'</span>\' +
+                    \'<span class="host">\' + self.escapeHtml(record.host) + \'</span></div>\';
             });
         }
-        html += \'</div>\';
-
-        // Arrow
-        html += \'<div class="mxchanger-arrow"><i class="fas fa-arrow-right"></i></div>\';
-
-        // Google records panel
-        html += \'<div class="mxchanger-dns-panel proposed">\' +
-            \'<h4><i class="fab fa-google"></i> Google Workspace MX</h4>\';
-
-        var googleRecords = [
-            {priority: 1, host: "ASPMX.L.GOOGLE.COM"},
-            {priority: 5, host: "ALT1.ASPMX.L.GOOGLE.COM"},
-            {priority: 5, host: "ALT2.ASPMX.L.GOOGLE.COM"},
-            {priority: 10, host: "ALT3.ASPMX.L.GOOGLE.COM"},
-            {priority: 10, host: "ALT4.ASPMX.L.GOOGLE.COM"}
-        ];
-
-        googleRecords.forEach(function(record) {
-            html += \'<div class="mxchanger-record add">\' +
-                \'<span class="priority">\' + record.priority + \'</span>\' +
-                \'<span class="host">\' + record.host + \'</span>\' +
-                \'</div>\';
+        html += \'</div><div class="mxchanger-arrow"><i class="fas fa-arrow-right"></i></div>\';
+        html += \'<div class="mxchanger-dns-panel proposed"><h4><i class="fab fa-google"></i> Google Workspace MX</h4>\';
+        [{priority: 1, host: "ASPMX.L.GOOGLE.COM"}, {priority: 5, host: "ALT1.ASPMX.L.GOOGLE.COM"},
+         {priority: 5, host: "ALT2.ASPMX.L.GOOGLE.COM"}, {priority: 10, host: "ALT3.ASPMX.L.GOOGLE.COM"},
+         {priority: 10, host: "ALT4.ASPMX.L.GOOGLE.COM"}].forEach(function(record) {
+            html += \'<div class="mxchanger-record add"><span class="priority">\' + record.priority + \'</span>\' +
+                \'<span class="host">\' + record.host + \'</span></div>\';
         });
-
         html += \'</div></div>\';
 
         document.getElementById("mxchanger-modal-body").innerHTML = html;
         document.getElementById("mxchanger-modal-footer").innerHTML =
             \'<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.fetchCurrentRecords()"><i class="fas fa-arrow-left"></i> Back</button>\' +
-            \'<button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.applyGoogleMx()"><i class="fas fa-check"></i> Apply Google MX Records</button>\';
+            \'<button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.applyGoogleMx()"><i class="fas fa-check"></i> Apply Google MX</button>\';
     },
 
     showLocalComparison: function() {
+        var self = this;
         var html = \'<div class="mxchanger-domain-info">\' +
             \'<div class="icon" style="background: linear-gradient(135deg, #5bc0de 0%, #337ab7 100%);"><i class="fas fa-server"></i></div>\' +
-            \'<div class="details">\' +
-            \'<h4>\' + this.escapeHtml(this.domain) + \'</h4>\' +
-            \'<p>Restore Default cPanel Mail Configuration</p>\' +
-            \'</div></div>\';
+            \'<div class="details"><h4>\' + this.escapeHtml(this.domain) + \'</h4>\' +
+            \'<p>Restore Default cPanel Mail Configuration</p></div></div>\';
 
-        html += \'<div class="mxchanger-warning">\' +
-            \'<i class="fas fa-exclamation-triangle"></i>\' +
-            \'<div class="content">\' +
-            \'<h5>Warning: DNS Changes</h5>\' +
-            \'<p>This will remove all existing MX records and point mail delivery to the local cPanel server. If you are using external email services, those will stop working.</p>\' +
-            \'</div></div>\';
+        html += \'<div class="mxchanger-warning"><i class="fas fa-exclamation-triangle"></i>\' +
+            \'<div class="content"><h5>Warning: DNS Changes</h5>\' +
+            \'<p>This will remove existing MX records and point mail to the local cPanel server.</p></div></div>\';
 
         html += \'<div class="mxchanger-comparison">\';
-
-        // Current records panel
-        html += \'<div class="mxchanger-dns-panel current">\' +
-            \'<h4><i class="fas fa-inbox"></i> Current MX Records</h4>\';
-
+        html += \'<div class="mxchanger-dns-panel current"><h4><i class="fas fa-inbox"></i> Current MX Records</h4>\';
         if (this.currentRecords.length === 0) {
-            html += \'<p class="text-muted" style="margin: 0;">No MX records found</p>\';
+            html += \'<p style="margin: 0; color: #999;">No MX records found</p>\';
         } else {
-            var self = this;
             this.currentRecords.forEach(function(record) {
-                html += \'<div class="mxchanger-record remove">\' +
-                    \'<span class="priority">\' + record.priority + \'</span>\' +
-                    \'<span class="host">\' + self.escapeHtml(record.host) + \'</span>\' +
-                    \'</div>\';
+                html += \'<div class="mxchanger-record remove"><span class="priority">\' + record.priority + \'</span>\' +
+                    \'<span class="host">\' + self.escapeHtml(record.host) + \'</span></div>\';
             });
         }
-        html += \'</div>\';
-
-        // Arrow
-        html += \'<div class="mxchanger-arrow"><i class="fas fa-arrow-right"></i></div>\';
-
-        // Local record panel
-        html += \'<div class="mxchanger-dns-panel proposed local">\' +
-            \'<h4><i class="fas fa-server"></i> Local Mail Server</h4>\';
-
-        html += \'<div class="mxchanger-record add local">\' +
-            \'<span class="priority">0</span>\' +
-            \'<span class="host">\' + this.escapeHtml(this.domain) + \'</span>\' +
-            \'</div>\';
-
+        html += \'</div><div class="mxchanger-arrow"><i class="fas fa-arrow-right"></i></div>\';
+        html += \'<div class="mxchanger-dns-panel proposed local"><h4><i class="fas fa-server"></i> Local Mail Server</h4>\';
+        html += \'<div class="mxchanger-record add local"><span class="priority">0</span>\' +
+            \'<span class="host">\' + this.escapeHtml(this.domain) + \'</span></div>\';
         html += \'</div></div>\';
 
         document.getElementById("mxchanger-modal-body").innerHTML = html;
@@ -1037,86 +861,60 @@ var MXChanger = {
 
     applyGoogleMx: function() {
         var self = this;
-
         this.showLoading("Applying Google MX configuration...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
 
         fetch("addonmodules.php?module=mxchanger&action=update_dns&service_id=" + this.serviceId + "&token=" + this.csrfToken, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                service_id: this.serviceId,
-                domain: this.domain
-            })
+            body: JSON.stringify({service_id: this.serviceId, domain: this.domain})
         })
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.success) {
-                self.showSuccess("Google Workspace MX records have been applied successfully!", "google");
-                self.showToast("success", "Google MX records applied to " + self.domain);
+                self.showSuccess("Google Workspace MX records applied successfully!");
+                self.showToast("success", "Google MX applied to " + self.domain);
             } else {
                 self.showError(data.message || "Failed to update DNS records");
-                self.showToast("error", "Failed to update MX records");
             }
         })
-        .catch(function(error) {
-            self.showError("Network error: " + error.message);
-            self.showToast("error", "Network error occurred");
-        });
+        .catch(function(error) { self.showError("Network error: " + error.message); });
     },
 
     applyLocalMx: function() {
         var self = this;
-
         this.showLoading("Restoring local mail configuration...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
 
         fetch("addonmodules.php?module=mxchanger&action=restore_local&service_id=" + this.serviceId + "&token=" + this.csrfToken, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                service_id: this.serviceId,
-                domain: this.domain
-            })
+            body: JSON.stringify({service_id: this.serviceId, domain: this.domain})
         })
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.success) {
-                self.showSuccess("Local mail server configuration has been restored!", "local");
+                self.showSuccess("Local mail server configuration restored!");
                 self.showToast("success", "Local mail restored for " + self.domain);
             } else {
                 self.showError(data.message || "Failed to restore local mail");
-                self.showToast("error", "Failed to restore local mail");
             }
         })
-        .catch(function(error) {
-            self.showError("Network error: " + error.message);
-            self.showToast("error", "Network error occurred");
-        });
+        .catch(function(error) { self.showError("Network error: " + error.message); });
     },
 
-    showSuccess: function(message, type) {
-        var iconBg = type === "local" ? "background: #d1ecf1; color: #0c5460;" : "";
-
+    showSuccess: function(message) {
         document.getElementById("mxchanger-modal-body").innerHTML =
-            \'<div class="mxchanger-success">\' +
-            \'<div class="icon" style="\' + iconBg + \'"><i class="fas fa-check"></i></div>\' +
-            \'<h4>Success!</h4>\' +
-            \'<p>\' + this.escapeHtml(message) + \'<br><small style="color: #999;">DNS propagation may take up to 24-48 hours.</small></p>\' +
-            \'</div>\';
-
+            \'<div class="mxchanger-success"><div class="icon"><i class="fas fa-check"></i></div>\' +
+            \'<h4>Success!</h4><p>\' + this.escapeHtml(message) + \'<br><small style="color: #999;">DNS propagation may take up to 48 hours.</small></p></div>\';
         document.getElementById("mxchanger-modal-footer").innerHTML =
             \'<button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.closeModal()"><i class="fas fa-check"></i> Done</button>\';
     },
 
     showError: function(message) {
         document.getElementById("mxchanger-modal-body").innerHTML =
-            \'<div class="mxchanger-error">\' +
-            \'<div class="icon"><i class="fas fa-exclamation-circle"></i></div>\' +
-            \'<h4>Error</h4>\' +
-            \'<p>\' + this.escapeHtml(message) + \'</p>\' +
-            \'</div>\';
-
+            \'<div class="mxchanger-error"><div class="icon"><i class="fas fa-exclamation-circle"></i></div>\' +
+            \'<h4>Error</h4><p>\' + this.escapeHtml(message) + \'</p></div>\';
         document.getElementById("mxchanger-modal-footer").innerHTML =
             \'<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.closeModal()"><i class="fas fa-times"></i> Close</button>\' +
             \'<button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.fetchCurrentRecords()"><i class="fas fa-redo"></i> Retry</button>\';
@@ -1127,12 +925,9 @@ var MXChanger = {
         toast.className = "mxchanger-toast " + type;
         toast.innerHTML = \'<i class="fas fa-\' + (type === "success" ? "check-circle" : "exclamation-circle") + \'"></i> \' + this.escapeHtml(message);
         document.body.appendChild(toast);
-
         setTimeout(function() {
             toast.style.animation = "mxchanger-toast-out 0.3s ease forwards";
-            setTimeout(function() {
-                toast.remove();
-            }, 300);
+            setTimeout(function() { toast.remove(); }, 300);
         }, 4000);
     },
 
@@ -1144,14 +939,20 @@ var MXChanger = {
     }
 };
 
-// Initialize when DOM is ready
-document.addEventListener("DOMContentLoaded", function() {
-    MXChanger.init();
-});
+// Initialize on page load and after delays for dynamic content
+document.addEventListener("DOMContentLoaded", function() { MXChanger.init(); });
+setTimeout(function() { MXChanger.init(); }, 1000);
+setTimeout(function() { MXChanger.init(); }, 2500);
 
-// Also run after delays to catch dynamically loaded content
-setTimeout(function() { MXChanger.init(); }, 500);
-setTimeout(function() { MXChanger.init(); }, 1500);
+// Also reinitialize when tab content loads (for AJAX-loaded tabs)
+var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.addedNodes.length > 0) {
+            setTimeout(function() { MXChanger.init(); }, 100);
+        }
+    });
+});
+observer.observe(document.body, { childList: true, subtree: true });
 </script>
 ';
 
