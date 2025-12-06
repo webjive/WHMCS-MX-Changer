@@ -43,17 +43,24 @@ try {
         case 'get_dns':
             $records = $dnsManager->getCurrentMxRecords();
             $mxType = $dnsManager->detectMxType();
+            $o365Record = $dnsManager->getOffice365MxRecord();
             echo json_encode([
                 'success' => true,
                 'domain' => $dnsManager->getDomain(),
                 'server' => $dnsManager->getServerName(),
                 'records' => $records,
                 'mx_type' => $mxType,
+                'o365_record' => $o365Record,
             ]);
             break;
 
         case 'update_dns':
             $result = $dnsManager->updateToGoogleMx();
+            echo json_encode($result);
+            break;
+
+        case 'update_office365':
+            $result = $dnsManager->updateToOffice365Mx();
             echo json_encode($result);
             break;
 

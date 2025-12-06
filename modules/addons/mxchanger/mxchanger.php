@@ -2,14 +2,14 @@
 /**
  * WHMCS MX Changer Addon Module
  *
- * Enables automated DNS record updates for Google MX configuration
- * through a web interface integrated into the WHMCS admin panel.
+ * Enables automated DNS record updates for Google Workspace, Microsoft 365,
+ * and local cPanel mail through a web interface integrated into the WHMCS admin panel.
  *
  * @package    WHMCS
  * @author     WebJIVE
  * @copyright  Copyright (c) WebJIVE
  * @link       https://webjive.com
- * @version    1.0.0
+ * @version    1.1.0
  */
 
 if (!defined("WHMCS")) {
@@ -35,9 +35,9 @@ define('GOOGLE_MX_RECORDS', [
 function mxchanger_config()
 {
     return [
-        'name' => 'Google MX Changer',
-        'description' => 'Automated DNS record updates for Google MX configuration via cPanel Extended API',
-        'version' => '1.0.0',
+        'name' => 'MX Changer',
+        'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
+        'version' => '1.1.0',
         'author' => 'WebJIVE',
         'fields' => [
             'enable_logging' => [
@@ -89,7 +89,7 @@ function mxchanger_activate()
 
         return [
             'status' => 'success',
-            'description' => 'Google MX Changer module has been activated successfully.',
+            'description' => 'MX Changer module has been activated successfully.',
         ];
     } catch (\Exception $e) {
         return [
@@ -110,7 +110,7 @@ function mxchanger_deactivate()
 
         return [
             'status' => 'success',
-            'description' => 'Google MX Changer module has been deactivated.',
+            'description' => 'MX Changer module has been deactivated.',
         ];
     } catch (\Exception $e) {
         return [
@@ -143,6 +143,12 @@ function mxchanger_output($vars)
     echo '<li class="' . ($action === 'overview' ? 'active' : '') . '">';
     echo '<a href="' . $modulelink . '&action=overview">Overview</a>';
     echo '</li>';
+    echo '<li class="' . ($action === 'google' ? 'active' : '') . '">';
+    echo '<a href="' . $modulelink . '&action=google">Google Workspace</a>';
+    echo '</li>';
+    echo '<li class="' . ($action === 'microsoft' ? 'active' : '') . '">';
+    echo '<a href="' . $modulelink . '&action=microsoft">Microsoft 365</a>';
+    echo '</li>';
     echo '<li class="' . ($action === 'logs' ? 'active' : '') . '">';
     echo '<a href="' . $modulelink . '&action=logs">Activity Logs</a>';
     echo '</li>';
@@ -151,6 +157,12 @@ function mxchanger_output($vars)
     echo '<div class="tab-content admin-tabs-content">';
 
     switch ($action) {
+        case 'google':
+            mxchanger_output_google($vars);
+            break;
+        case 'microsoft':
+            mxchanger_output_microsoft($vars);
+            break;
         case 'logs':
             mxchanger_output_logs($vars);
             break;
@@ -171,17 +183,70 @@ function mxchanger_output_overview($vars)
 
     echo '<div class="panel panel-default">';
     echo '<div class="panel-heading">';
-    echo '<h3 class="panel-title"><i class="fas fa-envelope"></i> Google MX Changer v' . htmlspecialchars($version) . '</h3>';
+    echo '<h3 class="panel-title"><i class="fas fa-envelope"></i> MX Changer v' . htmlspecialchars($version) . '</h3>';
     echo '</div>';
     echo '<div class="panel-body">';
 
     echo '<div class="alert alert-info">';
     echo '<i class="fas fa-info-circle"></i> ';
-    echo 'This module adds a <strong>"Google MX Update"</strong> button to the Products tab on customer profile pages. ';
-    echo 'When clicked, it retrieves current DNS records via cPanel Extended API and allows you to update them to Google Workspace MX records.';
+    echo 'This module adds an <strong>"MX Manager"</strong> button to the Module Commands area on hosting service pages. ';
+    echo 'It allows you to quickly switch between Google Workspace, Microsoft 365, and local cPanel mail configurations.';
     echo '</div>';
 
-    echo '<h4>Google Workspace MX Records:</h4>';
+    echo '<h4>Supported Configurations:</h4>';
+    echo '<div class="row">';
+
+    // Google Card
+    echo '<div class="col-md-4">';
+    echo '<div class="panel panel-success">';
+    echo '<div class="panel-heading"><h4 class="panel-title"><i class="fab fa-google"></i> Google Workspace</h4></div>';
+    echo '<div class="panel-body">';
+    echo '<ul><li>5 MX records</li><li>SPF with Google include</li><li>Removes autodiscover</li></ul>';
+    echo '</div></div></div>';
+
+    // Microsoft Card
+    echo '<div class="col-md-4">';
+    echo '<div class="panel panel-warning">';
+    echo '<div class="panel-heading"><h4 class="panel-title"><i class="fab fa-microsoft"></i> Microsoft 365</h4></div>';
+    echo '<div class="panel-body">';
+    echo '<ul><li>1 MX record</li><li>SPF with Microsoft include</li><li>Autodiscover CNAME</li></ul>';
+    echo '</div></div></div>';
+
+    // Local Card
+    echo '<div class="col-md-4">';
+    echo '<div class="panel panel-info">';
+    echo '<div class="panel-heading"><h4 class="panel-title"><i class="fas fa-server"></i> Local cPanel</h4></div>';
+    echo '<div class="panel-body">';
+    echo '<ul><li>1 MX record (domain)</li><li>SPF with server IP</li><li>Autodiscover A record</li></ul>';
+    echo '</div></div></div>';
+
+    echo '</div>';
+
+    echo '<h4>How to Use:</h4>';
+    echo '<ol>';
+    echo '<li>Navigate to a customer\'s hosting service in the WHMCS admin area</li>';
+    echo '<li>Find the <strong>"MX Manager"</strong> button in the Module Commands section</li>';
+    echo '<li>Select your desired mail configuration (Google, Microsoft, or Local)</li>';
+    echo '<li>Review the current records and proposed changes</li>';
+    echo '<li>Confirm to apply the new configuration</li>';
+    echo '</ol>';
+
+    echo '</div>';
+    echo '</div>';
+}
+
+/**
+ * Google Workspace tab content
+ */
+function mxchanger_output_google($vars)
+{
+    echo '<div class="panel panel-default">';
+    echo '<div class="panel-heading">';
+    echo '<h3 class="panel-title"><i class="fab fa-google"></i> Google Workspace DNS Configuration</h3>';
+    echo '</div>';
+    echo '<div class="panel-body">';
+
+    echo '<h4>MX Records:</h4>';
     echo '<table class="table table-striped table-bordered">';
     echo '<thead><tr><th>Priority</th><th>Mail Server</th></tr></thead>';
     echo '<tbody>';
@@ -194,14 +259,90 @@ function mxchanger_output_overview($vars)
     echo '</tbody>';
     echo '</table>';
 
-    echo '<h4>How to Use:</h4>';
-    echo '<ol>';
-    echo '<li>Navigate to a customer profile in the WHMCS admin area</li>';
-    echo '<li>Click on the <strong>Products/Services</strong> tab</li>';
-    echo '<li>Find a cPanel hosting product and click <strong>"Google MX Update"</strong></li>';
-    echo '<li>Review the current MX records and proposed changes</li>';
-    echo '<li>Confirm to apply the Google Workspace MX configuration</li>';
-    echo '</ol>';
+    echo '<h4>SPF Record:</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>v=spf1 +ip4:[SERVER_IP] include:_spf.google.com ~all</code></td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<div class="alert alert-info">';
+    echo '<i class="fas fa-info-circle"></i> <strong>Note:</strong> Google Workspace does not require an autodiscover record. ';
+    echo 'Any existing autodiscover CNAME will be removed when switching to Google.';
+    echo '</div>';
+
+    echo '<h4>Additional Google Workspace Records (Manual Setup):</h4>';
+    echo '<p>The following records may be needed for full Google Workspace functionality but are not automatically configured:</p>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>google-site-verification=XXXXX</code></td><td>Domain verification</td></tr>';
+    echo '<tr><td>CNAME</td><td>mail</td><td><code>ghs.googlehosted.com</code></td><td>Webmail access</td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '</div>';
+    echo '</div>';
+}
+
+/**
+ * Microsoft 365 tab content
+ */
+function mxchanger_output_microsoft($vars)
+{
+    echo '<div class="panel panel-default">';
+    echo '<div class="panel-heading">';
+    echo '<h3 class="panel-title"><i class="fab fa-microsoft"></i> Microsoft 365 DNS Configuration</h3>';
+    echo '</div>';
+    echo '<div class="panel-body">';
+
+    echo '<h4>MX Record:</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Priority</th><th>Mail Server</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>0</td><td><code>[DOMAIN-WITH-DASHES].mail.protection.outlook.com</code></td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+    echo '<p class="text-muted">Example: <code>example-com.mail.protection.outlook.com</code> for domain <code>example.com</code></p>';
+
+    echo '<h4>SPF Record:</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>v=spf1 +ip4:[SERVER_IP] include:spf.protection.outlook.com ~all</code></td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<h4>Autodiscover CNAME:</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Points To</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>CNAME</td><td>autodiscover</td><td><code>autodiscover.outlook.com</code></td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<div class="alert alert-warning">';
+    echo '<i class="fas fa-exclamation-triangle"></i> <strong>Important:</strong> The autodiscover CNAME is required for Outlook auto-configuration. ';
+    echo 'This module will automatically replace any existing autodiscover A record with the required CNAME.';
+    echo '</div>';
+
+    echo '<h4>Additional Microsoft 365 Records (Manual Setup):</h4>';
+    echo '<p>The following records may be needed for full Microsoft 365 functionality but are not automatically configured:</p>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>MS=msXXXXXXXX</code></td><td>Domain verification</td></tr>';
+    echo '<tr><td>CNAME</td><td>sip</td><td><code>sipdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
+    echo '<tr><td>CNAME</td><td>lyncdiscover</td><td><code>webdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
+    echo '<tr><td>SRV</td><td>_sip._tls</td><td><code>sipdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
+    echo '<tr><td>SRV</td><td>_sipfederationtls._tcp</td><td><code>sipfed.online.lync.com</code></td><td>Skype for Business Federation</td></tr>';
+    echo '<tr><td>CNAME</td><td>enterpriseregistration</td><td><code>enterpriseregistration.windows.net</code></td><td>MDM enrollment</td></tr>';
+    echo '<tr><td>CNAME</td><td>enterpriseenrollment</td><td><code>enterpriseenrollment.manage.microsoft.com</code></td><td>MDM enrollment</td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<p><a href="https://learn.microsoft.com/en-us/microsoft-365/admin/get-help-with-domains/create-dns-records-at-any-dns-hosting-provider" target="_blank" class="btn btn-default"><i class="fas fa-external-link-alt"></i> Microsoft 365 DNS Documentation</a></p>';
 
     echo '</div>';
     echo '</div>';
@@ -248,8 +389,19 @@ function mxchanger_output_logs($vars)
             foreach ($logs as $log) {
                 $statusClass = $log->status === 'success' ? 'success' : ($log->status === 'failed' ? 'danger' : 'warning');
                 $actionType = isset($log->action_type) ? $log->action_type : 'google';
-                $actionLabel = $actionType === 'local' ? 'Restore Local' : 'Set Google MX';
-                $actionClass = $actionType === 'local' ? 'info' : 'primary';
+                switch ($actionType) {
+                    case 'local':
+                        $actionLabel = 'Restore Local';
+                        $actionClass = 'info';
+                        break;
+                    case 'office365':
+                        $actionLabel = 'Set Office 365';
+                        $actionClass = 'warning';
+                        break;
+                    default:
+                        $actionLabel = 'Set Google MX';
+                        $actionClass = 'primary';
+                }
 
                 echo '<tr>';
                 echo '<td>' . date('Y-m-d H:i:s', strtotime($log->created_at)) . '</td>';

@@ -31,6 +31,7 @@ class DnsManager
      * MX configuration types
      */
     const MX_TYPE_GOOGLE = 'google';
+    const MX_TYPE_OFFICE365 = 'office365';
     const MX_TYPE_LOCAL = 'local';
 
     /**
@@ -232,14 +233,115 @@ class DnsManager
             }
         }
 
-        // Step 4: Log the change
+        // Step 4: Update SPF record for Google (replaces any existing)
+        $spfResult = $this->updateSpfRecord('google');
+        if (!$spfResult['success']) {
+            $errors = array_merge($errors, $spfResult['errors'] ?? [$spfResult['message']]);
+        }
+
+        // Step 5: Remove autodiscover CNAME if exists (Google doesn't use it)
+        $this->removeAutodiscoverRecord();
+
+        // Step 6: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode(self::GOOGLE_MX_RECORDS), $success, implode('; ', $errors), 'google');
 
         return [
             'success' => $success,
-            'message' => $success ? 'MX records updated successfully' : implode('; ', $errors),
+            'message' => $success ? 'MX and SPF records updated for Google Workspace' : implode('; ', $errors),
             'errors' => $errors,
+            'spf' => $spfResult['spf_value'] ?? null,
+        ];
+    }
+
+    /**
+     * Get Office 365 MX record for a domain
+     * Format: domain-tld.mail.protection.outlook.com (dots replaced with dashes)
+     *
+     * @return array
+     */
+    public function getOffice365MxRecord()
+    {
+        $domain = $this->getDomain();
+        // Replace dots with dashes for O365 format: example.com -> example-com
+        $o365Domain = str_replace('.', '-', $domain);
+        return [
+            'priority' => 0,
+            'exchange' => $o365Domain . '.mail.protection.outlook.com.',
+        ];
+    }
+
+    /**
+     * Update MX records to Office 365 configuration
+     *
+     * @return array Result with success status and message
+     */
+    public function updateToOffice365Mx()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        // Step 1: Get current MX records
+        $currentRecords = $this->getCurrentMxRecords();
+        $oldRecordsJson = json_encode($currentRecords);
+
+        // Step 2: Remove existing MX records using Email API
+        foreach ($currentRecords as $record) {
+            try {
+                // Try without trailing dot first
+                $this->callEmailApi('delmx', [
+                    'domain' => $domain,
+                    'exchange' => $record['host'],
+                    'preference' => $record['priority'],
+                ]);
+            } catch (\Exception $e) {
+                // Try with trailing dot as fallback
+                try {
+                    $this->callEmailApi('delmx', [
+                        'domain' => $domain,
+                        'exchange' => $record['host'] . '.',
+                        'preference' => $record['priority'],
+                    ]);
+                } catch (\Exception $e2) {
+                    $errors[] = 'Failed to remove: ' . $record['host'] . ' - ' . $e->getMessage();
+                }
+            }
+        }
+
+        // Step 3: Add Office 365 MX record
+        $o365Record = $this->getOffice365MxRecord();
+        try {
+            $this->callEmailApi('addmx', [
+                'domain' => $domain,
+                'exchange' => $o365Record['exchange'],
+                'preference' => $o365Record['priority'],
+            ]);
+        } catch (\Exception $e) {
+            $errors[] = 'Failed to add: ' . $o365Record['exchange'] . ' - ' . $e->getMessage();
+        }
+
+        // Step 4: Update SPF record for Office 365
+        $spfResult = $this->updateSpfRecord('office365');
+        if (!$spfResult['success']) {
+            $errors = array_merge($errors, $spfResult['errors'] ?? [$spfResult['message']]);
+        }
+
+        // Step 5: Add autodiscover CNAME for Outlook
+        $autodiscoverResult = $this->updateAutodiscoverCname();
+        if (!$autodiscoverResult['success']) {
+            $errors = array_merge($errors, $autodiscoverResult['errors'] ?? [$autodiscoverResult['message']]);
+        }
+
+        // Step 6: Log the change
+        $success = empty($errors);
+        $this->logChange($oldRecordsJson, json_encode([$o365Record]), $success, implode('; ', $errors), 'office365');
+
+        return [
+            'success' => $success,
+            'message' => $success ? 'MX, SPF, and Autodiscover records updated for Office 365' : implode('; ', $errors),
+            'errors' => $errors,
+            'new_records' => [$o365Record],
+            'spf' => $spfResult['spf_value'] ?? null,
         ];
     }
 
@@ -297,7 +399,20 @@ class DnsManager
             $errors[] = 'Failed to add local MX record: ' . $e->getMessage();
         }
 
-        // Step 4: Log the change
+        // Step 4: Update SPF record for local mail
+        $spfResult = $this->updateSpfRecord('local');
+        if (!$spfResult['success']) {
+            $errors = array_merge($errors, $spfResult['errors'] ?? [$spfResult['message']]);
+        }
+
+        // Step 5: Restore autodiscover A record (cPanel default)
+        $autodiscoverResult = $this->restoreAutodiscoverARecord();
+        if (!$autodiscoverResult['success']) {
+            // Non-critical, just log but don't fail
+            error_log('MX Changer: ' . ($autodiscoverResult['message'] ?? 'Autodiscover restore failed'));
+        }
+
+        // Step 6: Log the change
         $success = empty($errors);
         $newRecords = [$localMxRecord];
         $this->logChange($oldRecordsJson, json_encode($newRecords), $success, implode('; ', $errors), 'local');
@@ -307,6 +422,295 @@ class DnsManager
             'message' => $success ? 'MX records restored to local mail server' : implode('; ', $errors),
             'errors' => $errors,
             'new_records' => $newRecords,
+        ];
+    }
+
+    /**
+     * Get current SPF record for the domain
+     *
+     * @return string|null The SPF record value or null if not found
+     */
+    public function getCurrentSpfRecord()
+    {
+        $domain = $this->getDomain();
+
+        try {
+            $response = $this->callCpanelApi('fetchzone_records', [
+                'domain' => $domain,
+                'type' => 'TXT',
+            ], 'ZoneEdit');
+
+            $records = $response['cpanelresult']['data'] ?? $response['result']['data'] ?? [];
+
+            foreach ($records as $record) {
+                $txtdata = $record['txtdata'] ?? $record['record'] ?? '';
+                if (strpos($txtdata, 'v=spf1') === 0) {
+                    return [
+                        'line' => $record['line'] ?? null,
+                        'value' => $txtdata,
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            // SPF lookup failed, return null
+        }
+
+        return null;
+    }
+
+    /**
+     * Update or create SPF record
+     * Completely replaces existing SPF with provider-specific SPF
+     *
+     * @param string $provider 'google', 'office365', or 'local'
+     * @return array Result with success status
+     */
+    public function updateSpfRecord($provider)
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+        $serverIp = $this->serverData->ipaddress ?? null;
+
+        // Get current SPF record
+        $currentSpf = $this->getCurrentSpfRecord();
+
+        // Build new SPF based on provider - complete replacement
+        switch ($provider) {
+            case 'local':
+                // Local cPanel mail - server IP + a + mx
+                if ($serverIp) {
+                    $newSpfValue = 'v=spf1 +a +mx +ip4:' . $serverIp . ' ~all';
+                } else {
+                    $newSpfValue = 'v=spf1 +a +mx ~all';
+                }
+                break;
+
+            case 'google':
+                // Google Workspace - include Google SPF + server IP for webforms
+                if ($serverIp) {
+                    $newSpfValue = 'v=spf1 +ip4:' . $serverIp . ' include:_spf.google.com ~all';
+                } else {
+                    $newSpfValue = 'v=spf1 include:_spf.google.com ~all';
+                }
+                break;
+
+            case 'office365':
+                // Office 365 - include Microsoft SPF + server IP for webforms
+                if ($serverIp) {
+                    $newSpfValue = 'v=spf1 +ip4:' . $serverIp . ' include:spf.protection.outlook.com ~all';
+                } else {
+                    $newSpfValue = 'v=spf1 include:spf.protection.outlook.com ~all';
+                }
+                break;
+
+            default:
+                return ['success' => false, 'message' => 'Unknown provider'];
+        }
+
+        // Clean up any double spaces
+        $newSpfValue = preg_replace('/\s+/', ' ', trim($newSpfValue));
+
+        try {
+            if ($currentSpf && isset($currentSpf['line'])) {
+                // Edit existing record
+                $this->callCpanelApi('edit_zone_record', [
+                    'domain' => $domain,
+                    'line' => $currentSpf['line'],
+                    'type' => 'TXT',
+                    'txtdata' => $newSpfValue,
+                    'name' => $domain . '.',
+                    'ttl' => 3600,
+                ], 'ZoneEdit');
+            } else {
+                // Add new record
+                $this->callCpanelApi('add_zone_record', [
+                    'domain' => $domain,
+                    'type' => 'TXT',
+                    'txtdata' => $newSpfValue,
+                    'name' => $domain . '.',
+                    'ttl' => 3600,
+                ], 'ZoneEdit');
+            }
+        } catch (\Exception $e) {
+            $errors[] = 'SPF update failed: ' . $e->getMessage();
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'SPF record updated' : implode('; ', $errors),
+            'spf_value' => $newSpfValue,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Get current autodiscover record (any type - A, CNAME, etc)
+     *
+     * @param string $type Record type to search for (A, CNAME, or null for any)
+     * @return array|null
+     */
+    public function getAutodiscoverRecord($type = null)
+    {
+        $domain = $this->getDomain();
+
+        $typesToCheck = $type ? [$type] : ['CNAME', 'A'];
+
+        foreach ($typesToCheck as $recordType) {
+            try {
+                $response = $this->callCpanelApi('fetchzone_records', [
+                    'domain' => $domain,
+                    'type' => $recordType,
+                ], 'ZoneEdit');
+
+                $records = $response['cpanelresult']['data'] ?? $response['result']['data'] ?? [];
+
+                foreach ($records as $record) {
+                    $name = $record['name'] ?? '';
+                    // Match autodiscover but not _autodiscover (SRV records)
+                    if (preg_match('/^autodiscover\./i', $name)) {
+                        return [
+                            'line' => $record['line'] ?? null,
+                            'name' => $name,
+                            'type' => $recordType,
+                            'value' => $record['cname'] ?? $record['address'] ?? $record['record'] ?? '',
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                // Lookup failed, continue
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Update or create autodiscover CNAME for Office 365
+     *
+     * @return array Result with success status
+     */
+    public function updateAutodiscoverCname()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        $autodiscoverTarget = 'autodiscover.outlook.com.';
+        $autodiscoverName = 'autodiscover.' . $domain . '.';
+
+        try {
+            // Check for existing autodiscover record (any type)
+            $current = $this->getAutodiscoverRecord();
+
+            if ($current && isset($current['line'])) {
+                // If it's already a CNAME pointing to outlook, we're done
+                if ($current['type'] === 'CNAME' && strpos(strtolower($current['value']), 'outlook.com') !== false) {
+                    return ['success' => true, 'message' => 'Autodiscover already configured'];
+                }
+
+                // Delete existing record (whether A or CNAME)
+                $this->callCpanelApi('remove_zone_record', [
+                    'domain' => $domain,
+                    'line' => $current['line'],
+                ], 'ZoneEdit');
+            }
+
+            // Add new CNAME record
+            $this->callCpanelApi('add_zone_record', [
+                'domain' => $domain,
+                'type' => 'CNAME',
+                'name' => $autodiscoverName,
+                'cname' => $autodiscoverTarget,
+                'ttl' => 3600,
+            ], 'ZoneEdit');
+
+        } catch (\Exception $e) {
+            $errors[] = 'Autodiscover CNAME failed: ' . $e->getMessage();
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Autodiscover CNAME configured' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Remove any autodiscover record (A or CNAME)
+     *
+     * @return array Result with success status
+     */
+    public function removeAutodiscoverRecord()
+    {
+        $domain = $this->getDomain();
+
+        try {
+            $current = $this->getAutodiscoverRecord();
+
+            if ($current && isset($current['line'])) {
+                $this->callCpanelApi('remove_zone_record', [
+                    'domain' => $domain,
+                    'line' => $current['line'],
+                ], 'ZoneEdit');
+                return ['success' => true, 'message' => 'Autodiscover record removed'];
+            }
+
+            return ['success' => true, 'message' => 'No autodiscover record to remove'];
+        } catch (\Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Restore autodiscover A record for local cPanel mail
+     * Points autodiscover to server IP (cPanel default)
+     *
+     * @return array Result with success status
+     */
+    public function restoreAutodiscoverARecord()
+    {
+        $domain = $this->getDomain();
+        $serverIp = $this->serverData->ipaddress ?? null;
+        $errors = [];
+
+        if (!$serverIp) {
+            return ['success' => false, 'message' => 'Server IP not available'];
+        }
+
+        $autodiscoverName = 'autodiscover.' . $domain . '.';
+
+        try {
+            // First remove any existing autodiscover record (A or CNAME)
+            $current = $this->getAutodiscoverRecord();
+            if ($current && isset($current['line'])) {
+                // If already an A record pointing to correct IP, we're done
+                if ($current['type'] === 'A' && $current['value'] === $serverIp) {
+                    return ['success' => true, 'message' => 'Autodiscover A record already configured'];
+                }
+
+                // Remove existing record
+                $this->callCpanelApi('remove_zone_record', [
+                    'domain' => $domain,
+                    'line' => $current['line'],
+                ], 'ZoneEdit');
+            }
+
+            // Add A record pointing to server IP
+            $this->callCpanelApi('add_zone_record', [
+                'domain' => $domain,
+                'type' => 'A',
+                'name' => $autodiscoverName,
+                'address' => $serverIp,
+                'ttl' => 3600,
+            ], 'ZoneEdit');
+
+        } catch (\Exception $e) {
+            $errors[] = 'Autodiscover A record failed: ' . $e->getMessage();
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Autodiscover A record restored' : implode('; ', $errors),
+            'errors' => $errors,
         ];
     }
 
@@ -331,6 +735,14 @@ class DnsManager
             $host = strtolower($record['host']);
             if (in_array($host, $googleHosts) || strpos($host, 'google.com') !== false) {
                 return self::MX_TYPE_GOOGLE;
+            }
+        }
+
+        // Check for Office 365 MX records
+        foreach ($records as $record) {
+            $host = strtolower($record['host']);
+            if (strpos($host, '.mail.protection.outlook.com') !== false) {
+                return self::MX_TYPE_OFFICE365;
             }
         }
 
