@@ -361,7 +361,7 @@ class DnsManager
         }
 
         if ($httpCode !== 200) {
-            throw new \Exception('HTTP error: ' . $httpCode);
+            throw new \Exception('cPanel API error (HTTP ' . $httpCode . ') - Server: ' . $hostname . ', User: ' . $service->username);
         }
 
         $data = json_decode($response, true);
