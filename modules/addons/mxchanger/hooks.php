@@ -21,14 +21,9 @@ use WHMCS\Database\Capsule;
  * Add custom CSS to admin pages
  */
 add_hook('AdminAreaHeadOutput', 1, function($vars) {
-    // Load on client summary page AND client services page
-    $isClientPage = strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') !== false ||
-                    strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') !== false;
-    if (!$isClientPage) {
-        return '';
-    }
-
+    // Load on ALL admin pages for now to debug
     $output = '
+<!-- MX Changer Module Loaded -->
 <style>
 /* MX Changer Modal Styles */
 .mxchanger-modal-overlay {
@@ -544,13 +539,7 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
  * Add MX Manager button to Module Commands on Products/Services tab
  */
 add_hook('AdminAreaFooterOutput', 1, function($vars) {
-    // Load on client summary page AND client services page
-    $isClientPage = strpos($_SERVER['SCRIPT_NAME'], 'clientssummary.php') !== false ||
-                    strpos($_SERVER['SCRIPT_NAME'], 'clientsservices.php') !== false;
-    if (!$isClientPage) {
-        return '';
-    }
-
+    // Load on ALL admin pages for now to debug
     $csrfToken = generate_token("plain");
 
     $output = '
@@ -994,6 +983,15 @@ var MXChanger = {
         return div.innerHTML;
     }
 };
+
+// DEBUG: Add visible test banner
+(function() {
+    var testBanner = document.createElement("div");
+    testBanner.id = "mxchanger-test-banner";
+    testBanner.style.cssText = "position: fixed; top: 0; left: 0; right: 0; background: #4285f4; color: white; padding: 10px; text-align: center; z-index: 99999; font-weight: bold;";
+    testBanner.innerHTML = "MX Changer hooks.php is loading! <button onclick=\'this.parentElement.remove()\' style=\'margin-left: 20px; padding: 5px 10px;\'>Dismiss</button>";
+    document.body.insertBefore(testBanner, document.body.firstChild);
+})();
 
 // Initialize on page load and after delays for dynamic content
 document.addEventListener("DOMContentLoaded", function() { MXChanger.init(); });
