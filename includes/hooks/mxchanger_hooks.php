@@ -116,11 +116,20 @@ var MXChanger = {
     serviceId: null,
     domain: null,
     currentRecords: [],
-    csrfToken: "$csrfToken",
+    csrfToken: (function() {
+        // Try to get token from page
+        var tokenInput = document.querySelector('input[name="token"]');
+        if (tokenInput) return tokenInput.value;
+        // Try from meta tag
+        var metaToken = document.querySelector('meta[name="csrf-token"]');
+        if (metaToken) return metaToken.getAttribute('content');
+        // Fallback to PHP generated
+        return "$csrfToken";
+    })(),
     adminPath: "$adminPath",
 
     init: function() {
-        console.log("MXChanger: Initializing... Admin path: " + this.adminPath);
+        console.log("MXChanger: Initializing... Admin path: " + this.adminPath + ", token: " + this.csrfToken.substring(0,10) + "...");
         this.injectButtons();
     },
 
@@ -224,10 +233,19 @@ var MXChanger = {
         console.log("MXChanger: Fetching " + url);
         fetch(url, {
             method: "GET",
-            credentials: "same-origin"
+            credentials: "same-origin",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
         })
             .then(function(r) {
-                if (!r.ok) throw new Error("HTTP error: " + r.status);
+                console.log("MXChanger: Response status: " + r.status);
+                if (!r.ok) {
+                    return r.text().then(function(text) {
+                        console.log("MXChanger: Error response: " + text.substring(0, 500));
+                        throw new Error("HTTP error: " + r.status);
+                    });
+                }
                 return r.json();
             })
             .then(function(data) {
