@@ -1,0 +1,183 @@
+MX Changer for WHMCS - Installation Instructions
+================================================
+Version: 1.4.0
+Author: WebJIVE (https://webjive.com)
+
+REQUIREMENTS
+------------
+- WHMCS 8.5 or higher
+- cPanel/WHM hosting accounts with API access
+- PHP 7.4 or higher
+
+INSTALLATION
+------------
+
+1. UPLOAD FILES
+
+   Extract the zip and upload the following to your WHMCS installation:
+
+   - modules/addons/mxchanger/     -> /your-whmcs/modules/addons/mxchanger/
+   - includes/hooks/               -> /your-whmcs/includes/hooks/
+
+   File structure after upload:
+
+   /your-whmcs/
+   ├── modules/
+   │   └── addons/
+   │       └── mxchanger/
+   │           ├── mxchanger.php
+   │           ├── ajax_handler.php
+   │           ├── client_ajax.php
+   │           ├── lib/
+   │           │   └── DnsManager.php
+   │           └── templates/
+   │               └── clientarea.tpl
+   └── includes/
+       └── hooks/
+           └── mxchanger_hooks.php
+
+2. ACTIVATE THE ADDON
+
+   a. Log into WHMCS Admin
+   b. Go to: Setup > Addon Modules
+   c. Find "MX Changer" and click "Activate"
+   d. Click "Configure" and set your preferences:
+      - Enable Logging: Yes (recommended)
+      - Require Confirmation: Yes (recommended)
+      - Enable Client Access: Yes/No (your choice)
+   e. Set Access Control to allow appropriate admin roles
+
+3. CONFIGURE SERVER ACCESS
+
+   The module uses WHM API to manage DNS records. Ensure your WHMCS servers
+   have the correct access hash configured:
+
+   a. Go to: Setup > Servers
+   b. Edit each cPanel/WHM server
+   c. Ensure "Access Hash" field contains a valid WHM API token
+
+   To generate an API token in WHM:
+   - Log into WHM
+   - Go to: Development > Manage API Tokens
+   - Create a new token with appropriate permissions
+
+CLIENT AREA SETUP (OPTIONAL)
+----------------------------
+
+The module automatically adds an "Email MX Changer" link to the product
+details sidebar via hooks. If the link doesn't appear, you can manually
+add it to your template.
+
+For Twenty-One theme:
+
+1. Edit: templates/twenty-one/clientareaproductdetails.tpl
+
+2. Find the section with "Visit Website" button (around line 318-323)
+
+3. Add this line after the existing buttons:
+
+   <a href="index.php?m=mxchanger&service_id={$id}" class="btn btn-default">
+       <i class="fas fa-envelope"></i> Email MX Changer
+   </a>
+
+USAGE - ADMIN AREA
+------------------
+
+1. Go to any hosting service: Clients > [Client] > Products/Services > [Service]
+2. In the "Module Commands" section, click "MX Manager"
+3. The button shows the current MX status: [Google], [O365], or [cPanel]
+4. Choose your desired email provider:
+   - Google Workspace: Sets up Google MX records, SPF, and custom URL CNAMEs
+   - Microsoft 365: Sets up O365 MX, SPF, Autodiscover, Teams/Skype CNAMEs, and SRV records
+   - cPanel Mail: Restores default server MX and removes external provider records
+
+USAGE - CLIENT AREA
+-------------------
+
+If "Enable Client Access" is turned on:
+
+1. Clients log into their account
+2. Go to: Services > [Their Hosting Service]
+3. Click "Email MX Changer" button
+4. Select their desired email provider
+
+DNS RECORDS CONFIGURED
+----------------------
+
+GOOGLE WORKSPACE:
+- MX records (5 Google mail servers)
+- SPF: include:_spf.google.com
+- CNAMEs: mail, calendar, drive, docs, sites -> ghs.googlehosted.com
+
+MICROSOFT 365:
+- MX: [domain].mail.protection.outlook.com
+- SPF: include:spf.protection.outlook.com
+- Autodiscover CNAME -> autodiscover.outlook.com
+- Teams/Skype CNAMEs: sip, lyncdiscover
+- MDM CNAMEs: enterpriseregistration, enterpriseenrollment
+- SRV records: _sip._tls, _sipfederationtls._tcp
+
+CPANEL (LOCAL):
+- MX: Server hostname
+- SPF: Server IP with +a +mx
+- Autodiscover A record restored
+- All external provider records removed
+
+ACTIVITY LOGS
+-------------
+
+View all MX changes in the addon admin area:
+- Setup > Addon Modules > MX Changer > Activity Logs
+- Shows: Date, Admin, Client, Domain, Action, Status
+- Use "Clear Logs" button to purge old entries
+
+TROUBLESHOOTING
+---------------
+
+1. "Unauthorized" error in admin:
+   - Ensure you're logged into WHMCS admin
+   - Check addon access control settings
+
+2. "Service not found" error:
+   - Verify the hosting service exists and is active
+   - Check server configuration has valid access hash
+
+3. DNS changes not working:
+   - Verify WHM API token is valid
+   - Check server has ZoneEdit and Email API access
+   - Review PHP error logs for detailed errors
+
+4. Client area link not appearing:
+   - Check "Enable Client Access" is set to Yes
+   - Try manual template modification (see above)
+   - Clear WHMCS template cache
+
+SUPPORT
+-------
+
+For issues or feature requests:
+https://github.com/webjive/WHMCS-MX-Changer/issues
+
+CHANGELOG
+---------
+
+v1.4.0
+- Added client area MX management
+- Added "Email MX Changer" sidebar link
+- Added "Enable Client Access" setting
+
+v1.3.0
+- Added Google Workspace CNAME records (mail, calendar, drive, docs, sites)
+- Auto-remove provider records when switching
+
+v1.2.0
+- Added full Office 365 DNS support (SRV, Teams/Skype, MDM CNAMEs)
+
+v1.1.0
+- Added Microsoft 365 support
+- Added SPF record management
+- Added Autodiscover CNAME handling
+- Renamed to "MX Changer"
+
+v1.0.0
+- Initial release with Google Workspace support
