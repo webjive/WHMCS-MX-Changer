@@ -209,7 +209,8 @@ var MXChanger = {
             var btn = document.createElement("button");
             btn.type = "button";
             btn.className = "btn btn-default mxchanger-module-btn";
-            btn.innerHTML = '<i class="fas fa-envelope"></i> MX Manager';
+            btn.id = "mxchanger-btn-" + serviceId;
+            btn.innerHTML = '<i class="fas fa-envelope"></i> MX Manager <span class="mxchanger-status" style="margin-left:5px;padding:2px 6px;border-radius:3px;font-size:11px;background:rgba(255,255,255,0.3);"></span>';
             btn.onclick = function(e) {
                 e.preventDefault();
                 MXChanger.openModal(serviceId, domain);
@@ -237,9 +238,53 @@ var MXChanger = {
                 btnContainer.appendChild(btn);
                 console.log("MXChanger: Button appended (Change Password not found)");
             }
+
+            // Fetch current MX status and update button
+            self.fetchMxStatus(serviceId);
         } else {
             console.log("MXChanger: Missing serviceId or domain");
         }
+    },
+
+    fetchMxStatus: function(serviceId) {
+        var self = this;
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + serviceId, {credentials:"same-origin"})
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.mx_type) {
+                    var btn = document.getElementById("mxchanger-btn-" + serviceId);
+                    if (btn) {
+                        var statusSpan = btn.querySelector(".mxchanger-status");
+                        if (statusSpan) {
+                            var label = "";
+                            var bgColor = "";
+                            switch (data.mx_type) {
+                                case "google":
+                                    label = "Google";
+                                    bgColor = "#34a853";
+                                    break;
+                                case "office365":
+                                    label = "O365";
+                                    bgColor = "#d83b01";
+                                    break;
+                                case "local":
+                                    label = "cPanel";
+                                    bgColor = "#337ab7";
+                                    break;
+                                default:
+                                    label = "Other";
+                                    bgColor = "#e65100";
+                            }
+                            statusSpan.textContent = label;
+                            statusSpan.style.background = bgColor;
+                            statusSpan.style.color = "#fff";
+                        }
+                    }
+                }
+            })
+            .catch(function(e) {
+                console.log("MXChanger: Failed to fetch MX status - " + e.message);
+            });
     },
 
     openModal: function(serviceId, domain) {
@@ -384,8 +429,10 @@ var MXChanger = {
         fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_dns&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.success) self.showSuccess("Google Workspace DNS records configured!");
-                else self.showError(data.message || "Failed");
+                if (data.success) {
+                    self.showSuccess("Google Workspace DNS records configured!");
+                    self.fetchMxStatus(self.serviceId);
+                } else self.showError(data.message || "Failed");
             })
             .catch(function(e) { self.showError("Error: " + e.message); });
     },
@@ -397,8 +444,10 @@ var MXChanger = {
         fetch("/modules/addons/mxchanger/ajax_handler.php?action=restore_local&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.success) self.showSuccess("Local mail restored!");
-                else self.showError(data.message || "Failed");
+                if (data.success) {
+                    self.showSuccess("Local mail restored!");
+                    self.fetchMxStatus(self.serviceId);
+                } else self.showError(data.message || "Failed");
             })
             .catch(function(e) { self.showError("Error: " + e.message); });
     },
@@ -435,8 +484,10 @@ var MXChanger = {
         fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_office365&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.success) self.showSuccess("Office 365 DNS records configured!");
-                else self.showError(data.message || "Failed");
+                if (data.success) {
+                    self.showSuccess("Office 365 DNS records configured!");
+                    self.fetchMxStatus(self.serviceId);
+                } else self.showError(data.message || "Failed");
             })
             .catch(function(e) { self.showError("Error: " + e.message); });
     },
