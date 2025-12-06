@@ -140,7 +140,6 @@ var MXChanger = {
     adminPath: "$adminPath",
 
     init: function() {
-        console.log("MXChanger: Initializing... Admin path: " + this.adminPath + ", token: " + this.csrfToken.substring(0,10) + "...");
         this.injectButtons();
     },
 
@@ -154,18 +153,15 @@ var MXChanger = {
                 var nextCell = el.nextElementSibling;
                 if (nextCell) {
                     moduleCommandsContainer = nextCell;
-                    console.log("MXChanger: Found Module Commands container");
                 }
             }
         });
 
         if (!moduleCommandsContainer) {
-            console.log("MXChanger: Module Commands not found");
             return;
         }
 
         if (moduleCommandsContainer.querySelector(".mxchanger-module-btn")) {
-            console.log("MXChanger: Button already exists");
             return;
         }
 
@@ -181,7 +177,6 @@ var MXChanger = {
 
         if (!serviceId) {
             document.querySelectorAll("input[type='hidden']").forEach(function(input) {
-                console.log("MXChanger DEBUG: " + input.name + " = " + input.value);
                 if (input.name === "id" || input.name === "serviceid") {
                     serviceId = input.value;
                 }
@@ -202,8 +197,6 @@ var MXChanger = {
                 }
             }
         });
-
-        console.log("MXChanger: serviceId=" + serviceId + ", domain=" + domain);
 
         if (serviceId && domain) {
             var btn = document.createElement("button");
@@ -226,23 +219,16 @@ var MXChanger = {
             var changePasswordBtn = document.getElementById("btnChange_Password");
 
             if (changePasswordBtn) {
-                // Insert after Change Password
                 if (changePasswordBtn.nextSibling) {
                     btnContainer.insertBefore(btn, changePasswordBtn.nextSibling);
                 } else {
                     btnContainer.appendChild(btn);
                 }
-                console.log("MXChanger: Button added after Change Password");
             } else {
-                // Fallback: append at end of button container
                 btnContainer.appendChild(btn);
-                console.log("MXChanger: Button appended (Change Password not found)");
             }
 
-            // Fetch current MX status and update button
             self.fetchMxStatus(serviceId);
-        } else {
-            console.log("MXChanger: Missing serviceId or domain");
         }
     },
 
@@ -276,7 +262,7 @@ var MXChanger = {
                 }
             })
             .catch(function(e) {
-                console.log("MXChanger: Failed to fetch MX status - " + e.message);
+                // Silent fail for status fetch
             });
     },
 
@@ -299,9 +285,7 @@ var MXChanger = {
 
     fetchRecords: function() {
         var self = this;
-        // Use direct AJAX handler in the module directory
         var url = "/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + this.serviceId;
-        console.log("MXChanger: Fetching " + url);
         fetch(url, {
             method: "GET",
             credentials: "same-origin",
@@ -310,16 +294,13 @@ var MXChanger = {
             }
         })
         .then(function(r) {
-            console.log("MXChanger: Got response, status: " + r.status);
             return r.text();
         })
         .then(function(text) {
-            console.log("MXChanger: Response text: " + text.substring(0, 800));
             var data;
             try {
                 data = JSON.parse(text);
             } catch(e) {
-                console.log("MXChanger: Not valid JSON");
                 self.showError("Server returned invalid response");
                 return;
             }
@@ -332,7 +313,6 @@ var MXChanger = {
             }
         })
         .catch(function(e) {
-            console.log("MXChanger: Fetch error: " + e.message);
             self.showError("Network error: " + e.message);
         });
     },
