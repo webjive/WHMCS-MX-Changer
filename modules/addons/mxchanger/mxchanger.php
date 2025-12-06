@@ -6,9 +6,9 @@
  * and local cPanel mail through a web interface integrated into the WHMCS admin panel.
  *
  * @package    WHMCS
- * @author     WebJIVE
+ * @author     WebJIVE (https://www.web-jive.com)
  * @copyright  Copyright (c) WebJIVE
- * @link       https://webjive.com
+ * @link       https://www.web-jive.com
  * @version    1.4.0
  */
 
@@ -38,7 +38,7 @@ function mxchanger_config()
         'name' => 'MX Changer',
         'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
         'version' => '1.4.0',
-        'author' => 'WebJIVE',
+        'author' => '<a href="https://www.web-jive.com" target="_blank">WebJIVE</a>',
         'fields' => [
             'enable_logging' => [
                 'FriendlyName' => 'Enable Logging',

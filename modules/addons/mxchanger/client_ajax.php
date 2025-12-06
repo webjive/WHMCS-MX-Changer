@@ -3,7 +3,7 @@
  * MX Changer - Client AJAX Handler
  *
  * @package    WHMCS
- * @author     WebJIVE
+ * @author     WebJIVE (https://www.web-jive.com)
  * @copyright  Copyright (c) WebJIVE
  */
 

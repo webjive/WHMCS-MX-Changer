@@ -5,9 +5,9 @@
  * Handles MX record retrieval and updates via cPanel Email API
  *
  * @package    WHMCS
- * @author     WebJIVE
+ * @author     WebJIVE (https://www.web-jive.com)
  * @copyright  Copyright (c) WebJIVE
- * @link       https://webjive.com
+ * @link       https://www.web-jive.com
  */
 
 namespace MXChanger;

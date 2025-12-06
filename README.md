@@ -156,8 +156,8 @@ The module creates a `mod_mxchanger_log` table with the following structure:
 
 ## License
 
-Proprietary - WebJIVE
+Proprietary - [WebJIVE](https://www.web-jive.com)
 
 ## Author
 
-WebJIVE - [https://webjive.com](https://webjive.com)
+WebJIVE - [https://www.web-jive.com](https://www.web-jive.com)

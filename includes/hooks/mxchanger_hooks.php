@@ -2,6 +2,11 @@
 /**
  * WHMCS MX Changer - Hooks
  * Place this file in: /your-whmcs/includes/hooks/mxchanger_hooks.php
+ *
+ * @package    WHMCS
+ * @author     WebJIVE (https://www.web-jive.com)
+ * @copyright  Copyright (c) WebJIVE
+ * @link       https://www.web-jive.com
  */
 
 add_hook('AdminAreaHeadOutput', 1, function($vars) {

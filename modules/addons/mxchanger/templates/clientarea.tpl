@@ -1,3 +1,11 @@
+{*
+ * MX Changer - Client Area Template
+ *
+ * @package    WHMCS
+ * @author     WebJIVE (https://www.web-jive.com)
+ * @copyright  Copyright (c) WebJIVE
+ * @link       https://www.web-jive.com
+ *}
 <style>
 .mxchanger-client-container {
     max-width: 900px;
