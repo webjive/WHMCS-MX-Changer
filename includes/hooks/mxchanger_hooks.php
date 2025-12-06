@@ -239,30 +239,31 @@ var MXChanger = {
                 "X-Requested-With": "XMLHttpRequest"
             }
         })
-            .then(function(r) {
-                console.log("MXChanger: Response status: " + r.status);
-                return r.text().then(function(text) {
-                    console.log("MXChanger: Response body: " + text.substring(0, 500));
-                    if (!r.ok) {
-                        throw new Error("HTTP error: " + r.status);
-                    }
-                    try {
-                        return JSON.parse(text);
-                    } catch(e) {
-                        console.log("MXChanger: JSON parse error - response is not JSON");
-                        throw new Error("Invalid response - not JSON");
-                    }
-                });
-            })
-            .then(function(data) {
-                if (data.success) {
-                    self.currentRecords = data.records || [];
-                    self.showActions(data);
-                } else {
-                    self.showError(data.message || "Failed to fetch DNS");
-                }
-            })
-            .catch(function(e) { self.showError("Network error: " + e.message); });
+        .then(function(r) {
+            console.log("MXChanger: Got response, status: " + r.status);
+            return r.text();
+        })
+        .then(function(text) {
+            console.log("MXChanger: Response text: " + text.substring(0, 800));
+            var data;
+            try {
+                data = JSON.parse(text);
+            } catch(e) {
+                console.log("MXChanger: Not valid JSON");
+                self.showError("Server returned invalid response");
+                return;
+            }
+            if (data.success) {
+                self.currentRecords = data.records || [];
+                self.showActions(data);
+            } else {
+                self.showError(data.message || "Failed to fetch DNS");
+            }
+        })
+        .catch(function(e) {
+            console.log("MXChanger: Fetch error: " + e.message);
+            self.showError("Network error: " + e.message);
+        });
     },
 
     showActions: function(data) {
