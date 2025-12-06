@@ -321,11 +321,62 @@ var MXChanger = {
             return;
         }
 
-        // Get service ID from URL
+        // Get service ID - try multiple methods
         var serviceId = null;
+
+        // Method 1: From URL parameter "id"
         var urlParams = new URLSearchParams(window.location.search);
         serviceId = urlParams.get("id");
-        console.log("MXChanger: Service ID from URL: " + serviceId);
+        console.log("MXChanger: Service ID from URL id param: " + serviceId);
+
+        // Method 2: From URL parameter "serviceid"
+        if (!serviceId) {
+            serviceId = urlParams.get("serviceid");
+            console.log("MXChanger: Service ID from URL serviceid param: " + serviceId);
+        }
+
+        // Method 3: From existing module command buttons
+        if (!serviceId) {
+            var moduleButtons = moduleCommandsContainer.querySelectorAll("a, button, input[type=submit]");
+            moduleButtons.forEach(function(btn) {
+                if (serviceId) return;
+                var href = btn.getAttribute("href") || "";
+                var onclick = btn.getAttribute("onclick") || "";
+                var formAction = btn.form ? btn.form.action : "";
+                var searchStr = href + " " + onclick + " " + formAction;
+
+                var match = searchStr.match(/id=(\d+)/);
+                if (match) {
+                    serviceId = match[1];
+                    console.log("MXChanger: Service ID from button: " + serviceId);
+                }
+            });
+        }
+
+        // Method 4: From hidden form field
+        if (!serviceId) {
+            var hiddenId = document.querySelector("input[name=id]");
+            if (hiddenId) {
+                serviceId = hiddenId.value;
+                console.log("MXChanger: Service ID from hidden field: " + serviceId);
+            }
+        }
+
+        // Method 5: From form action
+        if (!serviceId) {
+            var forms = document.querySelectorAll("form");
+            forms.forEach(function(form) {
+                if (serviceId) return;
+                var action = form.action || "";
+                var match = action.match(/id=(\d+)/);
+                if (match) {
+                    serviceId = match[1];
+                    console.log("MXChanger: Service ID from form action: " + serviceId);
+                }
+            });
+        }
+
+        console.log("MXChanger: Final Service ID: " + serviceId);
 
         // Get domain from page
         var domain = null;
