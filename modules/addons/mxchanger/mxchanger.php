@@ -9,7 +9,7 @@
  * @author     WebJIVE
  * @copyright  Copyright (c) WebJIVE
  * @link       https://webjive.com
- * @version    1.1.0
+ * @version    1.2.0
  */
 
 if (!defined("WHMCS")) {
@@ -37,7 +37,7 @@ function mxchanger_config()
     return [
         'name' => 'MX Changer',
         'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
-        'version' => '1.1.0',
+        'version' => '1.2.0',
         'author' => 'WebJIVE',
         'fields' => [
             'enable_logging' => [
@@ -322,23 +322,35 @@ function mxchanger_output_microsoft($vars)
     echo '</tbody>';
     echo '</table>';
 
-    echo '<div class="alert alert-warning">';
-    echo '<i class="fas fa-exclamation-triangle"></i> <strong>Important:</strong> The autodiscover CNAME is required for Outlook auto-configuration. ';
-    echo 'This module will automatically replace any existing autodiscover A record with the required CNAME.';
+    echo '<div class="alert alert-success">';
+    echo '<i class="fas fa-check-circle"></i> <strong>Automatically Configured:</strong> All records listed above (MX, SPF, Autodiscover) plus the Teams/Skype and MDM records below are automatically configured when you select Office 365.';
     echo '</div>';
 
-    echo '<h4>Additional Microsoft 365 Records (Manual Setup):</h4>';
-    echo '<p>The following records may be needed for full Microsoft 365 functionality but are not automatically configured:</p>';
+    echo '<h4>Teams/Skype for Business Records <span class="label label-success">Auto-configured</span>:</h4>';
     echo '<table class="table table-striped table-bordered">';
     echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
     echo '<tbody>';
-    echo '<tr><td>TXT</td><td>@</td><td><code>MS=msXXXXXXXX</code></td><td>Domain verification</td></tr>';
-    echo '<tr><td>CNAME</td><td>sip</td><td><code>sipdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
-    echo '<tr><td>CNAME</td><td>lyncdiscover</td><td><code>webdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
-    echo '<tr><td>SRV</td><td>_sip._tls</td><td><code>sipdir.online.lync.com</code></td><td>Skype for Business</td></tr>';
-    echo '<tr><td>SRV</td><td>_sipfederationtls._tcp</td><td><code>sipfed.online.lync.com</code></td><td>Skype for Business Federation</td></tr>';
-    echo '<tr><td>CNAME</td><td>enterpriseregistration</td><td><code>enterpriseregistration.windows.net</code></td><td>MDM enrollment</td></tr>';
-    echo '<tr><td>CNAME</td><td>enterpriseenrollment</td><td><code>enterpriseenrollment.manage.microsoft.com</code></td><td>MDM enrollment</td></tr>';
+    echo '<tr><td>CNAME</td><td>sip</td><td><code>sipdir.online.lync.com</code></td><td>Teams/Skype</td></tr>';
+    echo '<tr><td>CNAME</td><td>lyncdiscover</td><td><code>webdir.online.lync.com</code></td><td>Teams/Skype</td></tr>';
+    echo '<tr><td>SRV</td><td>_sip._tls</td><td><code>100 1 443 sipdir.online.lync.com</code></td><td>Teams/Skype</td></tr>';
+    echo '<tr><td>SRV</td><td>_sipfederationtls._tcp</td><td><code>100 1 5061 sipfed.online.lync.com</code></td><td>Federation</td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<h4>Mobile Device Management Records <span class="label label-success">Auto-configured</span>:</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>CNAME</td><td>enterpriseregistration</td><td><code>enterpriseregistration.windows.net</code></td><td>Azure AD Join</td></tr>';
+    echo '<tr><td>CNAME</td><td>enterpriseenrollment</td><td><code>enterpriseenrollment.manage.microsoft.com</code></td><td>Intune MDM</td></tr>';
+    echo '</tbody>';
+    echo '</table>';
+
+    echo '<h4>Manual Setup (Not Auto-configured):</h4>';
+    echo '<table class="table table-striped table-bordered">';
+    echo '<thead><tr><th>Type</th><th>Host</th><th>Value</th><th>Purpose</th></tr></thead>';
+    echo '<tbody>';
+    echo '<tr><td>TXT</td><td>@</td><td><code>MS=msXXXXXXXX</code></td><td>Domain verification (unique per tenant)</td></tr>';
     echo '</tbody>';
     echo '</table>';
 

@@ -35,6 +35,25 @@ class DnsManager
     const MX_TYPE_LOCAL = 'local';
 
     /**
+     * Office 365 CNAME records (excluding autodiscover which is handled separately)
+     */
+    const O365_CNAME_RECORDS = [
+        'sip' => 'sipdir.online.lync.com.',
+        'lyncdiscover' => 'webdir.online.lync.com.',
+        'enterpriseregistration' => 'enterpriseregistration.windows.net.',
+        'enterpriseenrollment' => 'enterpriseenrollment.manage.microsoft.com.',
+    ];
+
+    /**
+     * Office 365 SRV records
+     * Format: [name => [priority, weight, port, target]]
+     */
+    const O365_SRV_RECORDS = [
+        '_sip._tls' => [100, 1, 443, 'sipdir.online.lync.com.'],
+        '_sipfederationtls._tcp' => [100, 1, 5061, 'sipfed.online.lync.com.'],
+    ];
+
+    /**
      * @var int
      */
     protected $serviceId;
@@ -242,7 +261,14 @@ class DnsManager
         // Step 5: Remove autodiscover CNAME if exists (Google doesn't use it)
         $this->removeAutodiscoverRecord();
 
-        // Step 6: Log the change
+        // Step 6: Remove any Office 365 specific records (CNAME and SRV)
+        $o365Cleanup = $this->removeOffice365Records();
+        if (!$o365Cleanup['success']) {
+            // Non-critical, just log
+            error_log('MX Changer: ' . ($o365Cleanup['message'] ?? 'O365 cleanup failed'));
+        }
+
+        // Step 7: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode(self::GOOGLE_MX_RECORDS), $success, implode('; ', $errors), 'google');
 
@@ -332,13 +358,25 @@ class DnsManager
             $errors = array_merge($errors, $autodiscoverResult['errors'] ?? [$autodiscoverResult['message']]);
         }
 
-        // Step 6: Log the change
+        // Step 6: Add Office 365 CNAME records (sip, lyncdiscover, etc.)
+        $cnameResult = $this->addOffice365CnameRecords();
+        if (!$cnameResult['success']) {
+            $errors = array_merge($errors, $cnameResult['errors'] ?? [$cnameResult['message']]);
+        }
+
+        // Step 7: Add Office 365 SRV records
+        $srvResult = $this->addOffice365SrvRecords();
+        if (!$srvResult['success']) {
+            $errors = array_merge($errors, $srvResult['errors'] ?? [$srvResult['message']]);
+        }
+
+        // Step 8: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode([$o365Record]), $success, implode('; ', $errors), 'office365');
 
         return [
             'success' => $success,
-            'message' => $success ? 'MX, SPF, and Autodiscover records updated for Office 365' : implode('; ', $errors),
+            'message' => $success ? 'All Office 365 DNS records configured (MX, SPF, Autodiscover, CNAME, SRV)' : implode('; ', $errors),
             'errors' => $errors,
             'new_records' => [$o365Record],
             'spf' => $spfResult['spf_value'] ?? null,
@@ -412,7 +450,14 @@ class DnsManager
             error_log('MX Changer: ' . ($autodiscoverResult['message'] ?? 'Autodiscover restore failed'));
         }
 
-        // Step 6: Log the change
+        // Step 6: Remove any Office 365 specific records (CNAME and SRV)
+        $o365Cleanup = $this->removeOffice365Records();
+        if (!$o365Cleanup['success']) {
+            // Non-critical, just log
+            error_log('MX Changer: ' . ($o365Cleanup['message'] ?? 'O365 cleanup failed'));
+        }
+
+        // Step 7: Log the change
         $success = empty($errors);
         $newRecords = [$localMxRecord];
         $this->logChange($oldRecordsJson, json_encode($newRecords), $success, implode('; ', $errors), 'local');
@@ -712,6 +757,232 @@ class DnsManager
             'message' => empty($errors) ? 'Autodiscover A record restored' : implode('; ', $errors),
             'errors' => $errors,
         ];
+    }
+
+    /**
+     * Add Office 365 CNAME records (sip, lyncdiscover, etc.)
+     *
+     * @return array Result with success status
+     */
+    public function addOffice365CnameRecords()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        foreach (self::O365_CNAME_RECORDS as $subdomain => $target) {
+            $recordName = $subdomain . '.' . $domain . '.';
+
+            try {
+                // Check if record already exists
+                $existing = $this->getCnameRecord($subdomain);
+
+                if ($existing && isset($existing['line'])) {
+                    // If already pointing to correct target, skip
+                    if (strpos(strtolower($existing['value']), strtolower(rtrim($target, '.'))) !== false) {
+                        continue;
+                    }
+                    // Remove existing record
+                    $this->callCpanelApi('remove_zone_record', [
+                        'domain' => $domain,
+                        'line' => $existing['line'],
+                    ], 'ZoneEdit');
+                }
+
+                // Add new CNAME record
+                $this->callCpanelApi('add_zone_record', [
+                    'domain' => $domain,
+                    'type' => 'CNAME',
+                    'name' => $recordName,
+                    'cname' => $target,
+                    'ttl' => 3600,
+                ], 'ZoneEdit');
+
+            } catch (\Exception $e) {
+                $errors[] = "Failed to add {$subdomain} CNAME: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Office 365 CNAME records added' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Add Office 365 SRV records
+     *
+     * @return array Result with success status
+     */
+    public function addOffice365SrvRecords()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        foreach (self::O365_SRV_RECORDS as $name => $config) {
+            list($priority, $weight, $port, $target) = $config;
+            $recordName = $name . '.' . $domain . '.';
+
+            try {
+                // Check if record already exists
+                $existing = $this->getSrvRecord($name);
+
+                if ($existing && isset($existing['line'])) {
+                    // If already pointing to correct target, skip
+                    if (strpos(strtolower($existing['target'] ?? ''), strtolower(rtrim($target, '.'))) !== false) {
+                        continue;
+                    }
+                    // Remove existing record
+                    $this->callCpanelApi('remove_zone_record', [
+                        'domain' => $domain,
+                        'line' => $existing['line'],
+                    ], 'ZoneEdit');
+                }
+
+                // Add new SRV record
+                $this->callCpanelApi('add_zone_record', [
+                    'domain' => $domain,
+                    'type' => 'SRV',
+                    'name' => $recordName,
+                    'priority' => $priority,
+                    'weight' => $weight,
+                    'port' => $port,
+                    'target' => $target,
+                    'ttl' => 3600,
+                ], 'ZoneEdit');
+
+            } catch (\Exception $e) {
+                $errors[] = "Failed to add {$name} SRV: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Office 365 SRV records added' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Remove all Office 365 specific records (CNAME and SRV)
+     *
+     * @return array Result with success status
+     */
+    public function removeOffice365Records()
+    {
+        $domain = $this->getDomain();
+        $errors = [];
+
+        // Remove O365 CNAME records
+        foreach (array_keys(self::O365_CNAME_RECORDS) as $subdomain) {
+            try {
+                $existing = $this->getCnameRecord($subdomain);
+                if ($existing && isset($existing['line'])) {
+                    $this->callCpanelApi('remove_zone_record', [
+                        'domain' => $domain,
+                        'line' => $existing['line'],
+                    ], 'ZoneEdit');
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Failed to remove {$subdomain} CNAME: " . $e->getMessage();
+            }
+        }
+
+        // Remove O365 SRV records
+        foreach (array_keys(self::O365_SRV_RECORDS) as $name) {
+            try {
+                $existing = $this->getSrvRecord($name);
+                if ($existing && isset($existing['line'])) {
+                    $this->callCpanelApi('remove_zone_record', [
+                        'domain' => $domain,
+                        'line' => $existing['line'],
+                    ], 'ZoneEdit');
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Failed to remove {$name} SRV: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'message' => empty($errors) ? 'Office 365 records removed' : implode('; ', $errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Get a specific CNAME record by subdomain
+     *
+     * @param string $subdomain The subdomain to look up (e.g., 'sip', 'lyncdiscover')
+     * @return array|null
+     */
+    public function getCnameRecord($subdomain)
+    {
+        $domain = $this->getDomain();
+        $lookupName = strtolower($subdomain . '.' . $domain);
+
+        try {
+            $response = $this->callCpanelApi('fetchzone_records', [
+                'domain' => $domain,
+                'type' => 'CNAME',
+            ], 'ZoneEdit');
+
+            $records = $response['cpanelresult']['data'] ?? $response['result']['data'] ?? [];
+
+            foreach ($records as $record) {
+                $name = strtolower(rtrim($record['name'] ?? '', '.'));
+                if ($name === $lookupName) {
+                    return [
+                        'line' => $record['line'] ?? null,
+                        'name' => $record['name'],
+                        'value' => $record['cname'] ?? $record['record'] ?? '',
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            // Lookup failed
+        }
+
+        return null;
+    }
+
+    /**
+     * Get a specific SRV record by name
+     *
+     * @param string $name The SRV record name (e.g., '_sip._tls')
+     * @return array|null
+     */
+    public function getSrvRecord($name)
+    {
+        $domain = $this->getDomain();
+        $lookupName = strtolower($name . '.' . $domain);
+
+        try {
+            $response = $this->callCpanelApi('fetchzone_records', [
+                'domain' => $domain,
+                'type' => 'SRV',
+            ], 'ZoneEdit');
+
+            $records = $response['cpanelresult']['data'] ?? $response['result']['data'] ?? [];
+
+            foreach ($records as $record) {
+                $recordName = strtolower(rtrim($record['name'] ?? '', '.'));
+                if ($recordName === $lookupName) {
+                    return [
+                        'line' => $record['line'] ?? null,
+                        'name' => $record['name'],
+                        'priority' => $record['priority'] ?? null,
+                        'weight' => $record['weight'] ?? null,
+                        'port' => $record['port'] ?? null,
+                        'target' => $record['target'] ?? $record['record'] ?? '',
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            // Lookup failed
+        }
+
+        return null;
     }
 
     /**

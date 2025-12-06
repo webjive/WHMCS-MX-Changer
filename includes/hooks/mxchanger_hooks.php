@@ -406,7 +406,7 @@ var MXChanger = {
         document.getElementById("mxchanger-modal-title").textContent = "Set Office 365";
         document.getElementById("mxchanger-modal-header").classList.remove("restore");
         document.getElementById("mxchanger-modal-header").classList.add("office365");
-        var html = '<div class="mxchanger-warning"><i class="fas fa-exclamation-triangle"></i><div class="content"><h5>Warning</h5><p>This will configure MX, SPF, and Autodiscover for Office 365.</p></div></div>';
+        var html = '<div class="mxchanger-warning"><i class="fas fa-exclamation-triangle"></i><div class="content"><h5>Warning</h5><p>This will configure all Office 365 DNS records.</p></div></div>';
         html += '<div class="mxchanger-comparison"><div class="mxchanger-dns-panel current"><h4>Current MX</h4>';
         if (this.currentRecords.length === 0) html += '<p>No records</p>';
         else this.currentRecords.forEach(function(r) { html += '<div class="mxchanger-record remove"><span class="priority">' + r.priority + '</span><span class="host">' + r.host + '</span></div>'; });
@@ -416,7 +416,12 @@ var MXChanger = {
             html += '<div class="mxchanger-record add"><span class="priority">' + this.o365Record.priority + '</span><span class="host">' + exchange + '</span></div>';
         }
         html += '</div></div>';
-        html += '<div class="mxchanger-info-box"><i class="fas fa-info-circle"></i> <strong>Also configures:</strong> SPF record with <code>include:spf.protection.outlook.com</code>, Autodiscover CNAME to <code>autodiscover.outlook.com</code></div>';
+        html += '<div class="mxchanger-info-box"><i class="fas fa-info-circle"></i> <strong>Also configures:</strong><br>';
+        html += '• SPF: <code>include:spf.protection.outlook.com</code><br>';
+        html += '• Autodiscover CNAME → <code>autodiscover.outlook.com</code><br>';
+        html += '• Teams/Skype CNAMEs: sip, lyncdiscover<br>';
+        html += '• MDM CNAMEs: enterpriseregistration, enterpriseenrollment<br>';
+        html += '• SRV records: _sip._tls, _sipfederationtls._tcp</div>';
         document.getElementById("mxchanger-modal-body").innerHTML = html;
         document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.showMenu()">Back</button><button class="mxchanger-btn mxchanger-btn-office365" onclick="MXChanger.applyOffice365()">Apply Office 365</button>';
     },
@@ -428,7 +433,7 @@ var MXChanger = {
         fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_office365&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
-                if (data.success) self.showSuccess("Office 365 MX applied!");
+                if (data.success) self.showSuccess("Office 365 DNS records configured!");
                 else self.showError(data.message || "Failed");
             })
             .catch(function(e) { self.showError("Error: " + e.message); });
