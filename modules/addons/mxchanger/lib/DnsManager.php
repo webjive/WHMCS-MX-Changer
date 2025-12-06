@@ -126,22 +126,33 @@ class DnsManager
         ]);
 
         // Handle various response structures
-        $data = [];
-        if (isset($response['result']['data'])) {
-            $data = $response['result']['data'];
+        // The listmxs API returns: data[0].entries[] for the actual MX records
+        $entries = [];
+
+        // Check for entries inside data[0] (cPanel Email API structure)
+        if (isset($response['result']['data'][0]['entries'])) {
+            $entries = $response['result']['data'][0]['entries'];
+        } elseif (isset($response['cpanelresult']['data'][0]['entries'])) {
+            $entries = $response['cpanelresult']['data'][0]['entries'];
+        } elseif (isset($response['data'][0]['entries'])) {
+            $entries = $response['data'][0]['entries'];
+        }
+        // Fallback to old structure if entries not found
+        elseif (isset($response['result']['data'])) {
+            $entries = $response['result']['data'];
         } elseif (isset($response['cpanelresult']['data'])) {
-            $data = $response['cpanelresult']['data'];
+            $entries = $response['cpanelresult']['data'];
         } elseif (isset($response['data'])) {
-            $data = $response['data'];
+            $entries = $response['data'];
         }
 
-        // Ensure $data is an array
-        if (!is_array($data)) {
-            $data = [];
+        // Ensure $entries is an array
+        if (!is_array($entries)) {
+            $entries = [];
         }
 
         $records = [];
-        foreach ($data as $record) {
+        foreach ($entries as $record) {
             if (!is_array($record)) {
                 continue;
             }
@@ -416,9 +427,9 @@ class DnsManager
             throw new \Exception($reason);
         }
 
-        // Check data-level errors (some API2 calls return errors in data)
-        if (isset($data['cpanelresult']['data'][0]['result']['status']) && $data['cpanelresult']['data'][0]['result']['status'] == 0) {
-            $reason = $data['cpanelresult']['data'][0]['result']['statusmsg'] ?? 'Operation failed';
+        // Check data-level errors (Email API returns status directly in data[0])
+        if (isset($data['cpanelresult']['data'][0]['status']) && $data['cpanelresult']['data'][0]['status'] == 0) {
+            $reason = $data['cpanelresult']['data'][0]['statusmsg'] ?? 'Operation failed';
             throw new \Exception($reason);
         }
 

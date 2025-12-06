@@ -13,8 +13,8 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
 .mxchanger-modal{background:#fff;border-radius:8px;max-width:900px;width:95%;max-height:90vh;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)}
 .mxchanger-modal-header{background:linear-gradient(135deg,#4285f4 0%,#34a853 100%);color:#fff;padding:20px 25px;display:flex;justify-content:space-between;align-items:center}
 .mxchanger-modal-header.restore{background:linear-gradient(135deg,#5bc0de 0%,#337ab7 100%)}
-.mxchanger-modal-header h3{margin:0;font-size:1.4em}
-.mxchanger-modal-header h3 i{margin-right:10px}
+.mxchanger-modal-header h3{margin:0;font-size:1.4em;color:#fff !important}
+.mxchanger-modal-header h3 i{margin-right:10px;color:#fff !important}
 .mxchanger-modal-close{background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:24px;width:36px;height:36px;border-radius:50%;cursor:pointer}
 .mxchanger-modal-close:hover{background:rgba(255,255,255,0.3)}
 .mxchanger-modal-body{padding:25px;overflow-y:auto;max-height:calc(90vh - 180px)}
@@ -48,8 +48,9 @@ add_hook('AdminAreaHeadOutput', 1, function($vars) {
 .mxchanger-domain-info .mx-badge.google{background:#e8f5e9;color:#2e7d32}
 .mxchanger-domain-info .mx-badge.local{background:#e3f2fd;color:#1565c0}
 .mxchanger-domain-info .mx-badge.other{background:#fff3e0;color:#e65100}
-.mxchanger-warning{background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #ffc107;border-radius:6px;padding:15px 20px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px}
+.mxchanger-warning{background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #ffc107;border-radius:6px;padding:12px 15px;margin-bottom:15px;display:flex;align-items:center;gap:10px}
 .mxchanger-warning i{color:#856404;font-size:20px;margin-top:2px}
+.mxchanger-warning .content{min-height:auto !important}
 .mxchanger-warning .content h5{margin:0 0 5px 0;color:#856404;font-weight:600}
 .mxchanger-warning .content p{margin:0;color:#856404;font-size:0.9em}
 .mxchanger-success{text-align:center;padding:40px 20px}
@@ -203,8 +204,29 @@ var MXChanger = {
                 e.preventDefault();
                 MXChanger.openModal(serviceId, domain);
             };
-            moduleCommandsContainer.appendChild(btn);
-            console.log("MXChanger: Button added!");
+
+            // Find the modcmdbtns div (where buttons actually live)
+            var btnContainer = document.getElementById("modcmdbtns");
+            if (!btnContainer) {
+                btnContainer = moduleCommandsContainer;
+            }
+
+            // Find Change Password button by ID
+            var changePasswordBtn = document.getElementById("btnChange_Password");
+
+            if (changePasswordBtn) {
+                // Insert after Change Password
+                if (changePasswordBtn.nextSibling) {
+                    btnContainer.insertBefore(btn, changePasswordBtn.nextSibling);
+                } else {
+                    btnContainer.appendChild(btn);
+                }
+                console.log("MXChanger: Button added after Change Password");
+            } else {
+                // Fallback: append at end of button container
+                btnContainer.appendChild(btn);
+                console.log("MXChanger: Button appended (Change Password not found)");
+            }
         } else {
             console.log("MXChanger: Missing serviceId or domain");
         }
@@ -267,9 +289,25 @@ var MXChanger = {
     },
 
     showActions: function(data) {
+        this.mxType = data.mx_type;
+
+        // Auto-navigate to the appropriate view based on current MX type
+        if (data.mx_type === "google") {
+            // Already on Google, show option to restore local
+            this.showLocal();
+        } else {
+            // On local or other, show option to set Google
+            this.showGoogle();
+        }
+    },
+
+    showMenu: function() {
         var badge = '<span class="mx-badge other">Custom</span>';
-        if (data.mx_type === "google") badge = '<span class="mx-badge google">Google MX</span>';
-        else if (data.mx_type === "local") badge = '<span class="mx-badge local">Local Mail</span>';
+        if (this.mxType === "google") badge = '<span class="mx-badge google">Google MX</span>';
+        else if (this.mxType === "local") badge = '<span class="mx-badge local">Local Mail</span>';
+
+        document.getElementById("mxchanger-modal-title").textContent = "MX Record Manager";
+        document.getElementById("mxchanger-modal-header").classList.remove("restore");
 
         var html = '<div class="mxchanger-domain-info"><div class="icon"><i class="fas fa-globe"></i></div>';
         html += '<div class="details"><h4>' + this.domain + '</h4><p>Service ID: ' + this.serviceId + '</p></div>' + badge + '</div>';
@@ -301,7 +339,7 @@ var MXChanger = {
         });
         html += '</div></div>';
         document.getElementById("mxchanger-modal-body").innerHTML = html;
-        document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.fetchRecords()">Back</button><button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.applyGoogle()">Apply Google MX</button>';
+        document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.showMenu()">Back</button><button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.applyGoogle()">Apply Google MX</button>';
     },
 
     showLocal: function() {
@@ -315,7 +353,7 @@ var MXChanger = {
         html += '<div class="mxchanger-record add"><span class="priority">0</span><span class="host">' + this.domain + '</span></div>';
         html += '</div></div>';
         document.getElementById("mxchanger-modal-body").innerHTML = html;
-        document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.fetchRecords()">Back</button><button class="mxchanger-btn mxchanger-btn-info" onclick="MXChanger.applyLocal()">Restore Local</button>';
+        document.getElementById("mxchanger-modal-footer").innerHTML = '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.showMenu()">Back</button><button class="mxchanger-btn mxchanger-btn-info" onclick="MXChanger.applyLocal()">Restore Local</button>';
     },
 
     applyGoogle: function() {
