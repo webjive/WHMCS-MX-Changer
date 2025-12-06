@@ -9,7 +9,7 @@
  * @author     WebJIVE
  * @copyright  Copyright (c) WebJIVE
  * @link       https://webjive.com
- * @version    1.3.0
+ * @version    1.4.0
  */
 
 if (!defined("WHMCS")) {
@@ -37,7 +37,7 @@ function mxchanger_config()
     return [
         'name' => 'MX Changer',
         'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
-        'version' => '1.3.0',
+        'version' => '1.4.0',
         'author' => 'WebJIVE',
         'fields' => [
             'enable_logging' => [
@@ -51,6 +51,12 @@ function mxchanger_config()
                 'Type' => 'yesno',
                 'Default' => 'yes',
                 'Description' => 'Show confirmation screen before applying changes',
+            ],
+            'enable_client_access' => [
+                'FriendlyName' => 'Enable Client Access',
+                'Type' => 'yesno',
+                'Default' => 'yes',
+                'Description' => 'Allow clients to manage MX records from their product details page',
             ],
         ],
     ];
@@ -482,4 +488,86 @@ function mxchanger_output_logs($vars)
     } catch (\Exception $e) {
         echo '<div class="alert alert-danger">Error loading logs: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
+}
+
+/**
+ * Client Area Output
+ * Accessible via index.php?m=mxchanger&service_id=X
+ */
+function mxchanger_clientarea($vars)
+{
+    // Check if client access is enabled
+    $enableClientAccess = $vars['enable_client_access'] ?? 'yes';
+    if ($enableClientAccess !== 'yes') {
+        return [
+            'pagetitle' => 'MX Changer',
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
+            'templatefile' => '',
+            'vars' => [
+                'error' => 'Client access to MX Changer is disabled.',
+            ],
+        ];
+    }
+
+    // Get service ID from request
+    $serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
+
+    // Verify client owns this service
+    $clientId = isset($_SESSION['uid']) ? (int)$_SESSION['uid'] : 0;
+
+    if (!$clientId) {
+        return [
+            'pagetitle' => 'MX Changer',
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
+            'templatefile' => 'clientarea',
+            'vars' => [
+                'error' => 'You must be logged in to access this feature.',
+                'serviceId' => 0,
+            ],
+        ];
+    }
+
+    if (!$serviceId) {
+        return [
+            'pagetitle' => 'MX Changer',
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
+            'templatefile' => 'clientarea',
+            'vars' => [
+                'error' => 'No service selected. Please access this page from your hosting service details.',
+                'serviceId' => 0,
+            ],
+        ];
+    }
+
+    // Verify ownership
+    $service = Capsule::table('tblhosting')
+        ->where('id', $serviceId)
+        ->where('userid', $clientId)
+        ->first();
+
+    if (!$service) {
+        return [
+            'pagetitle' => 'MX Changer',
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
+            'templatefile' => 'clientarea',
+            'vars' => [
+                'error' => 'Service not found or you do not have permission to manage it.',
+                'serviceId' => 0,
+            ],
+        ];
+    }
+
+    return [
+        'pagetitle' => 'Email MX Changer - ' . $service->domain,
+        'breadcrumb' => [
+            'clientarea.php?action=productdetails&id=' . $serviceId => $service->domain,
+            'index.php?m=mxchanger&service_id=' . $serviceId => 'MX Changer',
+        ],
+        'templatefile' => 'clientarea',
+        'vars' => [
+            'serviceId' => $serviceId,
+            'domain' => $service->domain,
+            'error' => '',
+        ],
+    ];
 }

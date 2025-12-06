@@ -504,3 +504,47 @@ JSEND;
 
     return $js;
 });
+
+/**
+ * Add "Email MX Changer" link to client area product details sidebar
+ */
+add_hook('ClientAreaPrimarySidebar', 1, function($sidebar) {
+    // Only show on product details page
+    $filename = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $action = isset($_GET['action']) ? $_GET['action'] : '';
+
+    if ($filename !== 'clientarea.php' || $action !== 'productdetails') {
+        return;
+    }
+
+    $serviceId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+    if (!$serviceId) {
+        return;
+    }
+
+    // Check if client access is enabled
+    try {
+        $addonSettings = \WHMCS\Database\Capsule::table('tbladdonmodules')
+            ->where('module', 'mxchanger')
+            ->where('setting', 'enable_client_access')
+            ->first();
+
+        if ($addonSettings && $addonSettings->value !== 'yes') {
+            return;
+        }
+    } catch (\Exception $e) {
+        return;
+    }
+
+    // Find the "Actions" panel and add our link
+    $actionsPanel = $sidebar->getChild('Service Details Actions');
+    if ($actionsPanel) {
+        $actionsPanel->addChild('mxchanger', [
+            'name' => 'Email MX Changer',
+            'label' => 'Email MX Changer',
+            'uri' => 'index.php?m=mxchanger&service_id=' . $serviceId,
+            'icon' => 'fa-envelope',
+            'order' => 100,
+        ]);
+    }
+});
