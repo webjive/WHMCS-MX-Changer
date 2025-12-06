@@ -354,22 +354,38 @@ var MXChanger = {
             });
         }
 
-        // Method 4: From hidden form field named "id"
+        // Method 4: From any input field named "id" (hidden or otherwise)
         if (!serviceId) {
-            var hiddenId = document.querySelector("input[name='id'][type='hidden']");
-            if (hiddenId && hiddenId.value) {
-                serviceId = hiddenId.value;
-                console.log("MXChanger: Service ID from hidden field: " + serviceId);
-            }
+            var idInputs = document.querySelectorAll("input[name='id']");
+            idInputs.forEach(function(input) {
+                if (serviceId) return;
+                if (input.value && !isNaN(input.value)) {
+                    serviceId = input.value;
+                    console.log("MXChanger: Service ID from input[name=id]: " + serviceId);
+                }
+            });
         }
 
-        // Method 5: From the page's main form - look for serviceid or id field
+        // Method 5: From the page's main form - look for serviceid field
         if (!serviceId) {
             var serviceIdField = document.querySelector("input[name='serviceid']");
             if (serviceIdField && serviceIdField.value) {
                 serviceId = serviceIdField.value;
                 console.log("MXChanger: Service ID from serviceid field: " + serviceId);
             }
+        }
+
+        // Method 5b: Look for productid or hostingid
+        if (!serviceId) {
+            var altFields = ["productid", "hostingid", "hosting_id", "service_id"];
+            altFields.forEach(function(fieldName) {
+                if (serviceId) return;
+                var field = document.querySelector("input[name='" + fieldName + "']");
+                if (field && field.value) {
+                    serviceId = field.value;
+                    console.log("MXChanger: Service ID from " + fieldName + ": " + serviceId);
+                }
+            });
         }
 
         // Method 6: From form action URL
@@ -412,6 +428,18 @@ var MXChanger = {
                         console.log("MXChanger: Service ID from page link: " + serviceId);
                     }
                 }
+            });
+        }
+
+        // Debug: Log all hidden inputs to help find the service ID
+        if (!serviceId) {
+            console.log("MXChanger: DEBUG - Listing all hidden inputs:");
+            document.querySelectorAll("input[type='hidden']").forEach(function(input) {
+                console.log("  Hidden field: " + input.name + " = " + input.value);
+            });
+            console.log("MXChanger: DEBUG - Listing all form actions:");
+            document.querySelectorAll("form").forEach(function(form) {
+                console.log("  Form action: " + form.action);
             });
         }
 
