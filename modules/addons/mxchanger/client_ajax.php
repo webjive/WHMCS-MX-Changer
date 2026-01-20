@@ -34,7 +34,7 @@ try {
         ->where('setting', 'enable_client_access')
         ->first();
 
-    if ($addonSettings && $addonSettings->value !== 'yes') {
+    if ($addonSettings && $addonSettings->value !== 'on') {
         echo json_encode(['success' => false, 'message' => 'Client access is disabled']);
         exit;
     }
