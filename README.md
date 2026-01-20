@@ -156,8 +156,12 @@ The module creates a `mod_mxchanger_log` table with the following structure:
 
 ## License
 
-Proprietary - [WebJIVE](https://www.web-jive.com)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Author
 
 WebJIVE - [https://www.web-jive.com](https://www.web-jive.com)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
