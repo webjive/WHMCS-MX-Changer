@@ -81,6 +81,11 @@ class DnsManager
     protected $serverData;
 
     /**
+     * @var string|null Optional domain override (for addon/parked domains)
+     */
+    protected $domainOverride = null;
+
+    /**
      * Constructor
      *
      * @param int $serviceId WHMCS service/hosting ID
@@ -89,6 +94,16 @@ class DnsManager
     {
         $this->serviceId = (int)$serviceId;
         $this->loadServiceData();
+    }
+
+    /**
+     * Override the domain used for DNS operations (e.g. addon/parked domains)
+     *
+     * @param string $domain
+     */
+    public function setDomain($domain)
+    {
+        $this->domainOverride = trim($domain);
     }
 
     /**
@@ -120,7 +135,7 @@ class DnsManager
      */
     public function getDomain()
     {
-        return $this->serviceData->domain;
+        return $this->domainOverride ?? $this->serviceData->domain;
     }
 
     /**
@@ -286,7 +301,13 @@ class DnsManager
             $errors = array_merge($errors, $cnameResult['errors'] ?? [$cnameResult['message']]);
         }
 
-        // Step 8: Log the change
+        // Step 8: Set cPanel Email Routing to Remote
+        $routingResult = $this->setEmailRouting('remote');
+        if (!$routingResult['success']) {
+            $errors[] = $routingResult['message'];
+        }
+
+        // Step 9: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode(self::GOOGLE_MX_RECORDS), $success, implode('; ', $errors), 'google');
 
@@ -395,7 +416,13 @@ class DnsManager
             error_log('MX Changer: ' . ($googleCleanup['message'] ?? 'Google cleanup failed'));
         }
 
-        // Step 9: Log the change
+        // Step 9: Set cPanel Email Routing to Remote
+        $routingResult = $this->setEmailRouting('remote');
+        if (!$routingResult['success']) {
+            $errors[] = $routingResult['message'];
+        }
+
+        // Step 10: Log the change
         $success = empty($errors);
         $this->logChange($oldRecordsJson, json_encode([$o365Record]), $success, implode('; ', $errors), 'office365');
 
@@ -489,7 +516,13 @@ class DnsManager
             error_log('MX Changer: ' . ($googleCleanup['message'] ?? 'Google cleanup failed'));
         }
 
-        // Step 8: Log the change
+        // Step 8: Set cPanel Email Routing to Local
+        $routingResult = $this->setEmailRouting('local');
+        if (!$routingResult['success']) {
+            $errors[] = $routingResult['message'];
+        }
+
+        // Step 9: Log the change
         $success = empty($errors);
         $newRecords = [$localMxRecord];
         $this->logChange($oldRecordsJson, json_encode($newRecords), $success, implode('; ', $errors), 'local');
@@ -1252,6 +1285,84 @@ class DnsManager
     }
 
     /**
+     * Call cPanel UAPI via WHM proxy (modern replacement for API2)
+     *
+     * @param string $module UAPI module (e.g., 'Email')
+     * @param string $function UAPI function (e.g., 'set_mxcheck')
+     * @param array $params Function parameters
+     * @return array API response
+     */
+    protected function callUapi($module, $function, $params = [])
+    {
+        $server = $this->serverData;
+        $service = $this->serviceData;
+
+        $hostname = $server->hostname ?: $server->ipaddress;
+        $username = $server->username ?: 'root';
+        $accessHash = trim(preg_replace('/\s+/', '', $server->accesshash ?? ''));
+        $secure = ($server->secure === 'on');
+        $protocol = $secure ? 'https' : 'http';
+        $cpanelUser = $service->username;
+
+        // Use json-api endpoint with apiversion=3 (UAPI via WHM proxy)
+        $queryParams = array_merge([
+            'cpanel_jsonapi_user'       => $cpanelUser,
+            'cpanel_jsonapi_apiversion' => '3',
+            'cpanel_jsonapi_module'     => $module,
+            'cpanel_jsonapi_func'       => $function,
+        ], $params);
+
+        $url = "{$protocol}://{$hostname}:2087/json-api/cpanel?" . http_build_query($queryParams);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => 30,
+        ]);
+
+        if (!empty($accessHash)) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ["Authorization: whm {$username}:{$accessHash}"]);
+        } else {
+            $password = $this->decryptPassword($server->password);
+            curl_setopt($ch, CURLOPT_USERPWD, "{$username}:{$password}");
+        }
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("Connection failed: {$curlError}");
+        }
+
+        if ($httpCode === 401) {
+            throw new \Exception("Auth failed (401) - Verify API token for {$username}@{$hostname}");
+        }
+
+        if ($httpCode !== 200) {
+            throw new \Exception("HTTP {$httpCode} from {$hostname}");
+        }
+
+        $data = json_decode($response, true);
+        if (!$data) {
+            throw new \Exception("Invalid JSON: " . substr($response, 0, 100));
+        }
+
+        // UAPI returns result.status === 0 on failure
+        if (isset($data['result']['status']) && $data['result']['status'] == 0) {
+            $errors = $data['result']['errors'] ?? ['Unknown UAPI error'];
+            throw new \Exception(implode('; ', (array)$errors));
+        }
+
+        return $data;
+    }
+
+    /**
      * Decrypt WHMCS encrypted password
      *
      * @param string $encryptedPassword
@@ -1288,6 +1399,68 @@ class DnsManager
         }
 
         throw new \Exception('Password decryption failed - unable to retrieve cPanel credentials');
+    }
+
+    /**
+     * Get all domains on this cPanel account (main + addon + parked)
+     *
+     * @return array List of domain strings
+     */
+    public function getAllDomains()
+    {
+        $main = $this->getDomain();
+        $domains = [$main];
+
+        try {
+            // DomainInfo::list_domains returns {main_domain, addon_domains[], parked_domains[], sub_domains[]}
+            $response = $this->callUapi('DomainInfo', 'list_domains', []);
+            $data = $response['result']['data'] ?? [];
+
+            foreach (['addon_domains', 'parked_domains'] as $key) {
+                if (!empty($data[$key]) && is_array($data[$key])) {
+                    foreach ($data[$key] as $d) {
+                        if (!empty($d) && !in_array($d, $domains)) {
+                            $domains[] = $d;
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // Fall back to main domain only
+        }
+
+        sort($domains);
+        return $domains;
+    }
+
+    /**
+     * Set cPanel Email Routing (mxcheck) for the domain
+     *
+     * @param string $type 'remote' for Google/O365, 'local' for cPanel mail
+     * @return array Result with success status
+     */
+    public function setEmailRouting($type)
+    {
+        $domain = $this->getDomain();
+
+        // Try UAPI first (modern cPanel); fall back to legacy API2
+        try {
+            $this->callUapi('Email', 'set_mxcheck', [
+                'domain'  => $domain,
+                'mxcheck' => $type,
+            ]);
+            return ['success' => true, 'message' => "Email routing set to {$type}"];
+        } catch (\Exception $uapiEx) {
+            try {
+                $this->callEmailApi('setmxcheck', [
+                    'domain'  => $domain,
+                    'mxcheck' => $type,
+                ]);
+                return ['success' => true, 'message' => "Email routing set to {$type}"];
+            } catch (\Exception $api2Ex) {
+                return ['success' => false, 'message' => 'Email routing update failed: ' . $api2Ex->getMessage()];
+            }
+        }
     }
 
     /**

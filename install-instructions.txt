@@ -1,6 +1,6 @@
 MX Changer for WHMCS - Installation Instructions
 ================================================
-Version: 1.4.0
+Version: 1.5.0
 Author: WebJIVE (https://www.web-jive.com)
 
 REQUIREMENTS
@@ -160,6 +160,13 @@ https://github.com/webjive/WHMCS-MX-Changer/issues
 
 CHANGELOG
 ---------
+
+v1.5.0
+- Added multi-domain picker in both admin modal and client area — addon and parked domains now appear alongside the main hosting domain
+- Added setDomain() override to DnsManager so all DNS operations (read, write, email routing) target the correct domain zone
+- Fixed UAPI call method — switched from /execute/ path to json-api apiversion=3 for compatibility with all cPanel/WHM versions
+- Fixed setEmailRouting() for local mail — now correctly sets cPanel Email Routing to "Local Mail Exchanger" via UAPI with API2 fallback
+- Fixed "Enable Client Access" setting check — WHMCS yesno fields store "on" not "yes"; client area was incorrectly blocked
 
 v1.4.0
 - Added client area MX management

@@ -9,7 +9,7 @@
  * @author     WebJIVE (https://www.web-jive.com)
  * @copyright  Copyright (c) WebJIVE
  * @link       https://www.web-jive.com
- * @version    1.4.1
+ * @version    1.5.0
  */
 
 if (!defined("WHMCS")) {
@@ -37,7 +37,7 @@ function mxchanger_config()
     return [
         'name' => 'MX Changer',
         'description' => 'Automated DNS record updates for Google Workspace, Microsoft 365, and local cPanel mail via cPanel API',
-        'version' => '1.4.1',
+        'version' => '1.5.0',
         'author' => '<a href="https://www.web-jive.com" target="_blank">WebJIVE</a>',
         'fields' => [
             'enable_logging' => [
@@ -134,13 +134,6 @@ function mxchanger_output($vars)
     $modulelink = $vars['modulelink'];
     $version = $vars['version'];
     $action = isset($_GET['action']) ? $_GET['action'] : 'overview';
-
-    // Handle AJAX requests
-    if (in_array($action, ['get_dns', 'update_dns', 'restore_local'])) {
-        require_once __DIR__ . '/ajax.php';
-        mxchanger_handle_ajax($vars);
-        return;
-    }
 
     echo '<div class="mxchanger-admin-wrapper">';
 
@@ -496,28 +489,15 @@ function mxchanger_output_logs($vars)
  */
 function mxchanger_clientarea($vars)
 {
-    // Check if client access is enabled by querying the database directly
-    // Note: $vars in client area doesn't always include module settings
-    try {
-        $setting = Capsule::table('tbladdonmodules')
-            ->where('module', 'mxchanger')
-            ->where('setting', 'enable_client_access')
-            ->first();
-
-        $enableClientAccess = $setting ? $setting->value : 'on';
-    } catch (\Exception $e) {
-        // If unable to check, default to enabled
-        $enableClientAccess = 'on';
-    }
-
-    if ($enableClientAccess !== 'on') {
+    // Check if client access is enabled
+    $enableClientAccess = $vars['enable_client_access'] ?? 'on';
+    if (!in_array($enableClientAccess, ['on', 'yes'])) {
         return [
             'pagetitle' => 'MX Changer',
-            'breadcrumb' => [],
-            'templatefile' => 'clientarea',
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
+            'templatefile' => '',
             'vars' => [
                 'error' => 'Client access to MX Changer is disabled.',
-                'serviceId' => 0,
             ],
         ];
     }
@@ -531,7 +511,7 @@ function mxchanger_clientarea($vars)
     if (!$clientId) {
         return [
             'pagetitle' => 'MX Changer',
-            'breadcrumb' => [],
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
             'templatefile' => 'clientarea',
             'vars' => [
                 'error' => 'You must be logged in to access this feature.',
@@ -543,7 +523,7 @@ function mxchanger_clientarea($vars)
     if (!$serviceId) {
         return [
             'pagetitle' => 'MX Changer',
-            'breadcrumb' => [],
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
             'templatefile' => 'clientarea',
             'vars' => [
                 'error' => 'No service selected. Please access this page from your hosting service details.',
@@ -561,7 +541,7 @@ function mxchanger_clientarea($vars)
     if (!$service) {
         return [
             'pagetitle' => 'MX Changer',
-            'breadcrumb' => [],
+            'breadcrumb' => ['index.php?m=mxchanger' => 'MX Changer'],
             'templatefile' => 'clientarea',
             'vars' => [
                 'error' => 'Service not found or you do not have permission to manage it.',
@@ -574,11 +554,13 @@ function mxchanger_clientarea($vars)
         'pagetitle' => 'Email MX Changer - ' . $service->domain,
         'breadcrumb' => [
             'clientarea.php?action=productdetails&id=' . $serviceId => $service->domain,
+            'index.php?m=mxchanger&service_id=' . $serviceId => 'MX Changer',
         ],
         'templatefile' => 'clientarea',
         'vars' => [
             'serviceId' => $serviceId,
             'domain' => $service->domain,
+            'error' => '',
         ],
     ];
 }

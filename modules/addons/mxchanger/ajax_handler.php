@@ -28,6 +28,63 @@ try {
     }
 
     $action = isset($_GET['action']) ? $_GET['action'] : '';
+
+    // Return all domains (main + addon + parked) for each of the client's hosting services
+    if ($action === 'get_client_domains') {
+        $sid = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
+        if (!$sid) {
+            echo json_encode(['success' => false, 'message' => 'Service ID required']);
+            exit;
+        }
+        $svc = \Illuminate\Database\Capsule\Manager::table('tblhosting')->where('id', $sid)->first();
+        if (!$svc) {
+            echo json_encode(['success' => false, 'message' => 'Service not found']);
+            exit;
+        }
+        $rows = \Illuminate\Database\Capsule\Manager::table('tblhosting')
+            ->where('userid', $svc->userid)
+            ->where('domainstatus', 'Active')
+            ->whereNotNull('domain')
+            ->where('domain', '!=', '')
+            ->orderBy('domain')
+            ->get(['id', 'domain']);
+        require_once __DIR__ . '/lib/DnsManager.php';
+        $domains = [];
+        foreach ($rows as $row) {
+            try {
+                $mgr = new \MXChanger\DnsManager($row->id);
+                foreach ($mgr->getAllDomains() as $d) {
+                    $domains[] = ['service_id' => $row->id, 'domain' => $d];
+                }
+            } catch (\Exception $e) {
+                $domains[] = ['service_id' => $row->id, 'domain' => $row->domain];
+            }
+        }
+        usort($domains, function($a, $b) { return strcmp($a['domain'], $b['domain']); });
+        echo json_encode(['success' => true, 'domains' => $domains]);
+        exit;
+    }
+
+    // Look up the hosting service_id for a given domain name (no service_id required)
+    if ($action === 'get_service_by_domain') {
+        $domain = isset($_GET['domain']) ? trim($_GET['domain']) : '';
+        if (empty($domain)) {
+            echo json_encode(['success' => false, 'message' => 'Domain required']);
+            exit;
+        }
+        $service = \Illuminate\Database\Capsule\Manager::table('tblhosting')
+            ->where('domain', $domain)
+            ->where('domainstatus', 'Active')
+            ->orderBy('id', 'desc')
+            ->first();
+        if (!$service) {
+            echo json_encode(['success' => false, 'message' => 'No active hosting service found']);
+            exit;
+        }
+        echo json_encode(['success' => true, 'service_id' => $service->id]);
+        exit;
+    }
+
     $serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
 
     if (!$serviceId) {
@@ -38,6 +95,12 @@ try {
     require_once __DIR__ . '/lib/DnsManager.php';
 
     $dnsManager = new \MXChanger\DnsManager($serviceId);
+
+    // Support addon/parked domain override
+    $domainParam = isset($_GET['domain']) ? trim($_GET['domain']) : '';
+    if ($domainParam) {
+        $dnsManager->setDomain($domainParam);
+    }
 
     switch ($action) {
         case 'get_dns':

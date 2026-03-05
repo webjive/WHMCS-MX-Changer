@@ -181,12 +181,12 @@
     {else}
         <div class="mxchanger-client-header">
             <h2><i class="fas fa-envelope"></i> Email MX Changer</h2>
-            <p>Manage email routing for <strong>{$domain}</strong></p>
+            <p id="mxchanger-client-subtitle">Loading hosted domains...</p>
         </div>
         <div class="mxchanger-client-body" id="mxchanger-client-content">
             <div class="mxchanger-loading">
                 <div class="spinner"></div>
-                <p>Loading DNS records...</p>
+                <p>Loading domains...</p>
             </div>
         </div>
     {/if}
@@ -200,12 +200,60 @@ var MXChangerClient = {
     currentType: null,
 
     init: function() {
+        this.loadDomains();
+    },
+
+    loadDomains: function() {
+        var self = this;
+        fetch('/modules/addons/mxchanger/client_ajax.php?action=get_client_domains&service_id=' + this.serviceId, {
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                self.showError(data.message || 'Failed to load domains');
+                return;
+            }
+            if (data.domains.length === 1) {
+                self.serviceId = data.domains[0].service_id;
+                self.domain = data.domains[0].domain;
+                document.getElementById('mxchanger-client-subtitle').innerHTML = 'Manage email routing for <strong>' + self.domain + '</strong>';
+                document.getElementById('mxchanger-client-content').innerHTML = '<div class="mxchanger-loading"><div class="spinner"></div><p>Loading DNS records...</p></div>';
+                self.fetchRecords();
+            } else {
+                self.showDomainPicker(data.domains);
+            }
+        })
+        .catch(function(e) { self.showError('Error: ' + e.message); });
+    },
+
+    showDomainPicker: function(domains) {
+        var self = this;
+        document.getElementById('mxchanger-client-subtitle').textContent = 'Select a domain to manage';
+        var html = '<p style="color:#6c757d;margin-bottom:15px;">Select the hosted domain to manage MX records for:</p>';
+        html += '<select id="mxchanger-domain-select" class="form-control" style="font-size:1.05em;padding:8px 12px;height:auto;margin-bottom:20px;">';
+        domains.forEach(function(d) {
+            var sel = (d.service_id == self.serviceId) ? ' selected' : '';
+            html += '<option value="' + d.service_id + '" data-domain="' + d.domain + '"' + sel + '>' + d.domain + '</option>';
+        });
+        html += '</select>';
+        html += '<button class="btn btn-primary" onclick="MXChangerClient.selectDomain()"><i class="fas fa-envelope"></i> Manage MX Records</button>';
+        document.getElementById('mxchanger-client-content').innerHTML = html;
+    },
+
+    selectDomain: function() {
+        var select = document.getElementById('mxchanger-domain-select');
+        var opt = select.options[select.selectedIndex];
+        this.serviceId = select.value;
+        this.domain = opt.getAttribute('data-domain');
+        document.getElementById('mxchanger-client-subtitle').innerHTML = 'Manage email routing for <strong>' + this.domain + '</strong>';
+        document.getElementById('mxchanger-client-content').innerHTML = '<div class="mxchanger-loading"><div class="spinner"></div><p>Loading DNS records...</p></div>';
         this.fetchRecords();
     },
 
     fetchRecords: function() {
         var self = this;
-        fetch('/modules/addons/mxchanger/client_ajax.php?action=get_dns&service_id=' + this.serviceId, {
+        fetch('/modules/addons/mxchanger/client_ajax.php?action=get_dns&service_id=' + this.serviceId + '&domain=' + encodeURIComponent(this.domain || ''), {
             credentials: 'same-origin'
         })
         .then(function(r) { return r.json(); })
@@ -223,6 +271,7 @@ var MXChangerClient = {
     },
 
     renderContent: function(data) {
+        document.getElementById('mxchanger-client-subtitle').innerHTML = 'Manage email routing for <strong>' + this.domain + '</strong>';
         var statusLabel = 'Unknown';
         var statusClass = 'other';
         switch (data.mx_type) {
@@ -291,7 +340,7 @@ var MXChangerClient = {
 
         document.getElementById('mxchanger-client-content').innerHTML = '<div class="mxchanger-loading"><div class="spinner"></div><p>Updating DNS records...</p></div>';
 
-        fetch('/modules/addons/mxchanger/client_ajax.php?action=' + action + '&service_id=' + this.serviceId, {
+        fetch('/modules/addons/mxchanger/client_ajax.php?action=' + action + '&service_id=' + this.serviceId + '&domain=' + encodeURIComponent(this.domain || ''), {
             method: 'POST',
             credentials: 'same-origin'
         })

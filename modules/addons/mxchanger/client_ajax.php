@@ -34,12 +34,39 @@ try {
         ->where('setting', 'enable_client_access')
         ->first();
 
-    if ($addonSettings && $addonSettings->value !== 'on') {
+    if ($addonSettings && !in_array($addonSettings->value, ['on', 'yes'])) {
         echo json_encode(['success' => false, 'message' => 'Client access is disabled']);
         exit;
     }
 
     $action = isset($_GET['action']) ? $_GET['action'] : '';
+
+    // Return all domains (main + addon + parked) across all of this client's hosting services
+    if ($action === 'get_client_domains') {
+        $rows = \WHMCS\Database\Capsule::table('tblhosting')
+            ->where('userid', $clientId)
+            ->where('domainstatus', 'Active')
+            ->whereNotNull('domain')
+            ->where('domain', '!=', '')
+            ->orderBy('domain')
+            ->get(['id', 'domain']);
+        require_once __DIR__ . '/lib/DnsManager.php';
+        $domains = [];
+        foreach ($rows as $row) {
+            try {
+                $mgr = new \MXChanger\DnsManager($row->id);
+                foreach ($mgr->getAllDomains() as $d) {
+                    $domains[] = ['service_id' => $row->id, 'domain' => $d];
+                }
+            } catch (\Exception $e) {
+                $domains[] = ['service_id' => $row->id, 'domain' => $row->domain];
+            }
+        }
+        usort($domains, function($a, $b) { return strcmp($a['domain'], $b['domain']); });
+        echo json_encode(['success' => true, 'domains' => $domains]);
+        exit;
+    }
+
     $serviceId = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
 
     if (!$serviceId) {
@@ -61,6 +88,12 @@ try {
     require_once __DIR__ . '/lib/DnsManager.php';
 
     $dnsManager = new \MXChanger\DnsManager($serviceId);
+
+    // Support addon/parked domain override
+    $domainParam = isset($_GET['domain']) ? trim($_GET['domain']) : '';
+    if ($domainParam) {
+        $dnsManager->setDomain($domainParam);
+    }
 
     switch ($action) {
         case 'get_dns':

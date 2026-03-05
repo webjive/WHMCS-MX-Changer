@@ -239,7 +239,7 @@ var MXChanger = {
 
     fetchMxStatus: function(serviceId) {
         var self = this;
-        fetch("/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + serviceId, {credentials:"same-origin"})
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + serviceId + "&domain=" + encodeURIComponent(this.domain || ''), {credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success && data.mx_type) {
@@ -275,6 +275,55 @@ var MXChanger = {
         this.serviceId = serviceId;
         this.domain = domain;
         document.getElementById("mxchanger-modal").classList.add("active");
+        this.showLoading("Loading hosted domains...");
+
+        var self = this;
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=get_client_domains&service_id=" + serviceId, {
+            credentials: "same-origin"
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                self.showError(data.message || "Failed to load domains");
+                return;
+            }
+            if (data.domains.length === 1) {
+                self.serviceId = data.domains[0].service_id;
+                self.domain = data.domains[0].domain;
+                self.showLoading("Fetching DNS records...");
+                self.fetchRecords();
+            } else {
+                self.showDomainPicker(data.domains);
+            }
+        })
+        .catch(function(e) { self.showError("Network error: " + e.message); });
+    },
+
+    showDomainPicker: function(domains) {
+        var self = this;
+        document.getElementById("mxchanger-modal-title").textContent = "MX Record Manager";
+        document.getElementById("mxchanger-modal-header").classList.remove("restore");
+        document.getElementById("mxchanger-modal-header").classList.remove("office365");
+
+        var html = '<p style="color:#6c757d;margin-bottom:20px;">Select the hosted domain to manage MX records for:</p>';
+        html += '<select id="mxchanger-domain-select" class="form-control" style="font-size:1.05em;padding:8px 12px;height:auto;">';
+        domains.forEach(function(d) {
+            var sel = (d.service_id == self.serviceId) ? ' selected' : '';
+            html += '<option value="' + d.service_id + '" data-domain="' + d.domain + '"' + sel + '>' + d.domain + '</option>';
+        });
+        html += '</select>';
+
+        document.getElementById("mxchanger-modal-body").innerHTML = html;
+        document.getElementById("mxchanger-modal-footer").innerHTML =
+            '<button class="mxchanger-btn mxchanger-btn-secondary" onclick="MXChanger.closeModal()">Cancel</button>' +
+            '<button class="mxchanger-btn mxchanger-btn-primary" onclick="MXChanger.selectDomain()"><i class="fas fa-envelope"></i> Manage MX</button>';
+    },
+
+    selectDomain: function() {
+        var select = document.getElementById("mxchanger-domain-select");
+        var opt = select.options[select.selectedIndex];
+        this.serviceId = select.value;
+        this.domain = opt.getAttribute("data-domain");
         this.showLoading("Fetching DNS records...");
         this.fetchRecords();
     },
@@ -290,7 +339,7 @@ var MXChanger = {
 
     fetchRecords: function() {
         var self = this;
-        var url = "/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + this.serviceId;
+        var url = "/modules/addons/mxchanger/ajax_handler.php?action=get_dns&service_id=" + this.serviceId + "&domain=" + encodeURIComponent(this.domain || '');
         fetch(url, {
             method: "GET",
             credentials: "same-origin",
@@ -404,7 +453,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Applying Google MX...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_dns&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_dns&service_id=" + this.serviceId + "&domain=" + encodeURIComponent(this.domain || ''), {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
@@ -419,7 +468,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Restoring local mail...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("/modules/addons/mxchanger/ajax_handler.php?action=restore_local&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=restore_local&service_id=" + this.serviceId + "&domain=" + encodeURIComponent(this.domain || ''), {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
@@ -459,7 +508,7 @@ var MXChanger = {
         var self = this;
         this.showLoading("Applying Office 365 MX...");
         document.getElementById("mxchanger-modal-footer").innerHTML = "";
-        fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_office365&service_id=" + this.serviceId, {method:"POST", credentials:"same-origin"})
+        fetch("/modules/addons/mxchanger/ajax_handler.php?action=update_office365&service_id=" + this.serviceId + "&domain=" + encodeURIComponent(this.domain || ''), {method:"POST", credentials:"same-origin"})
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.success) {
@@ -514,7 +563,7 @@ add_hook('ClientAreaPrimarySidebar', 1, function($sidebar) {
             ->where('setting', 'enable_client_access')
             ->first();
 
-        if ($addonSettings && $addonSettings->value !== 'yes') {
+        if ($addonSettings && !in_array($addonSettings->value, ['on', 'yes'])) {
             return;
         }
     } catch (\Exception $e) {
